@@ -3,15 +3,31 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+// Debug: Log what we're getting from environment
+console.log('[Supabase Init] Environment check:');
+console.log('  VITE_SUPABASE_URL:', supabaseUrl ? `${supabaseUrl.substring(0, 30)}...` : 'MISSING');
+console.log('  VITE_SUPABASE_ANON_KEY:', supabaseAnonKey ? `${supabaseAnonKey.substring(0, 20)}...` : 'MISSING');
+console.log('  All env vars:', Object.keys(import.meta.env).filter(key => key.startsWith('VITE_')));
+
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Missing Supabase environment variables. Please check your .env file.');
-  console.error('Required: VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY');
+  console.error('❌ Missing Supabase environment variables!');
+  console.error('Please check your .env file in the project root.');
+  console.error('Required variables:');
+  console.error('  VITE_SUPABASE_URL=https://your-project.supabase.co');
+  console.error('  VITE_SUPABASE_ANON_KEY=your-anon-key');
+  console.error('');
+  console.error('After updating .env, restart your dev server with: npm run dev');
+  console.error('');
+  console.error('Current working directory:', import.meta.url);
 }
 
-export const supabase = createClient(
-  supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseAnonKey || 'placeholder-key'
-);
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error(
+    'Missing Supabase credentials. Please check your .env file and restart the dev server.'
+  );
+}
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export type Registry = {
   id: string;

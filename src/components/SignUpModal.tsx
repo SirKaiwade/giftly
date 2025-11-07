@@ -38,30 +38,60 @@ const SignUpModal = ({ isOpen, onClose, onSuccess, onNavigateToSignIn }: SignUpM
         return;
       }
 
+      console.log('[SignUp] Attempting to create account for:', email);
+      
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
       });
 
-      if (signUpError) throw signUpError;
+      console.log('[SignUp] Response:', { data, error: signUpError });
+
+      if (signUpError) {
+        console.error('[SignUp] Error:', signUpError);
+        throw signUpError;
+      }
 
       if (data.user) {
+        console.log('[SignUp] User created:', data.user.id);
+        
         // Check if user is immediately signed in (email confirmation disabled)
-        const { data: sessionData } = await supabase.auth.getSession();
-        if (sessionData.session) {
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error('[SignUp] Session error:', sessionError);
+        }
+        
+        console.log('[SignUp] Session data:', sessionData);
+        
+        if (sessionData?.session) {
           // User is signed in immediately
+          console.log('[SignUp] User signed in immediately');
           setMessage('Account created successfully!');
           setTimeout(() => {
             onSuccess?.();
             onClose();
           }, 1000);
         } else {
-          // Email confirmation required
-          setMessage('Account created! Please check your email to verify your account. You can sign in after verification.');
+          // Email confirmation required OR user created but not confirmed
+          console.log('[SignUp] Email confirmation required or user not confirmed');
+          if (data.user && !data.session) {
+            setMessage('Account created! Please check your email to verify your account. You can sign in after verification.');
+          } else {
+            setMessage('Account created successfully! You can now sign in.');
+            setTimeout(() => {
+              onNavigateToSignIn?.();
+            }, 2000);
+          }
         }
+      } else {
+        console.warn('[SignUp] No user in response:', data);
+        setError('Account creation failed. Please try again.');
       }
     } catch (err: any) {
-      setError(err.message || 'An error occurred. Please try again.');
+      console.error('[SignUp] Exception:', err);
+      const errorMessage = err.message || err.toString() || 'An error occurred. Please try again.';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
