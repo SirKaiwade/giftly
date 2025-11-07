@@ -158,7 +158,7 @@ const LandingPage = ({ onGetStarted, onViewExample }: LandingPageProps) => {
                       className="text-xs transition-colors duration-500"
                       style={{ color: themeColors.textMuted }}
                     >
-                      giftendo.com/adam-maya
+                      giftendo.com/james-maya
                     </div>
                   </div>
                 </div>
