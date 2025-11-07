@@ -11,23 +11,34 @@ console.log('  All env vars:', Object.keys(import.meta.env).filter(key => key.st
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error('❌ Missing Supabase environment variables!');
-  console.error('Please check your .env file in the project root.');
-  console.error('Required variables:');
-  console.error('  VITE_SUPABASE_URL=https://your-project.supabase.co');
-  console.error('  VITE_SUPABASE_ANON_KEY=your-anon-key');
-  console.error('');
-  console.error('After updating .env, restart your dev server with: npm run dev');
-  console.error('');
-  console.error('Current working directory:', import.meta.url);
+  if (import.meta.env.DEV) {
+    console.error('For local development:');
+    console.error('  - Check your .env file in the project root');
+    console.error('  - Restart your dev server: npm run dev');
+  } else {
+    console.error('For production:');
+    console.error('  - Set environment variables in your hosting platform');
+    console.error('  - Vercel: Project Settings → Environment Variables');
+    console.error('  - Netlify: Site Settings → Environment Variables');
+    console.error('  - Required: VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY');
+  }
 }
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(
-    'Missing Supabase credentials. Please check your .env file and restart the dev server.'
-  );
+  // Don't throw in production - show a user-friendly error instead
+  if (import.meta.env.DEV) {
+    throw new Error(
+      'Missing Supabase credentials. Please check your .env file and restart the dev server.'
+    );
+  }
+  // In production, create a client that will fail gracefully
+  console.error('⚠️ Supabase not configured - app will not work properly');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(
+  supabaseUrl || 'https://placeholder.supabase.co',
+  supabaseAnonKey || 'placeholder-key'
+);
 
 export type Registry = {
   id: string;

@@ -19,6 +19,35 @@ function AppContent() {
   const [signInModalOpen, setSignInModalOpen] = useState(false);
   const [signUpModalOpen, setSignUpModalOpen] = useState(false);
 
+  // Handle auth callback from email confirmation
+  useEffect(() => {
+    const handleAuthCallback = async () => {
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const accessToken = hashParams.get('access_token');
+      const refreshToken = hashParams.get('refresh_token');
+      
+      if (accessToken && refreshToken) {
+        console.log('[Auth] Processing email confirmation callback');
+        // Exchange the tokens for a session
+        const { data, error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        
+        if (error) {
+          console.error('[Auth] Error setting session:', error);
+        } else if (data.session) {
+          console.log('[Auth] Email confirmed, user signed in');
+          setUser(data.session.user);
+          // Clean up the URL
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      }
+    };
+
+    handleAuthCallback();
+  }, []);
+
   // Check authentication state
   useEffect(() => {
     // Get initial session

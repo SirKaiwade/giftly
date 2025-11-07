@@ -40,9 +40,15 @@ const SignUpModal = ({ isOpen, onClose, onSuccess, onNavigateToSignIn }: SignUpM
 
       console.log('[SignUp] Attempting to create account for:', email);
       
+      // Use current origin for redirect (works for both dev and production)
+      const redirectTo = `${window.location.origin}/auth/callback`;
+      
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          emailRedirectTo: redirectTo,
+        },
       });
 
       console.log('[SignUp] Response:', { data, error: signUpError });
