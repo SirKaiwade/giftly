@@ -64,8 +64,11 @@ const ProfileModal = ({ user, isOpen, onClose }: ProfileModalProps) => {
         .eq('user_id', user.id)
         .single();
 
-      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
-        console.error('Error loading profile:', error);
+      if (error) {
+        // PGRST116 = no rows returned (this is fine, user just hasn't created a profile yet)
+        if (error.code !== 'PGRST116') {
+          console.error('Error loading profile:', error.message || error);
+        }
       }
 
       if (data) {
@@ -134,8 +137,12 @@ const ProfileModal = ({ user, isOpen, onClose }: ProfileModalProps) => {
       setSaveMessage({ type: 'success', text: 'Profile saved successfully!' });
       setTimeout(() => setSaveMessage(null), 3000);
     } catch (error: any) {
-      console.error('Error saving profile:', error);
-      setSaveMessage({ type: 'error', text: error.message || 'Failed to save profile' });
+      console.error('Error saving profile:', error.message || error);
+      // Extract just the error message, not any SQL suggestions
+      const errorMessage = error.message || error.toString();
+      // Remove any SQL code that might be in the error message
+      const cleanMessage = errorMessage.split('-- Create')[0].trim() || 'Failed to save profile';
+      setSaveMessage({ type: 'error', text: cleanMessage });
     } finally {
       setIsSaving(false);
     }
