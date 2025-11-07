@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRegistry } from '../contexts/RegistryContext';
-import { ArrowLeft, ArrowRight, Eye, GripVertical, Plus, Edit2, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Eye, GripVertical, Plus, Edit2, Trash2, Lock } from 'lucide-react';
 import { EVENT_TYPES, THEMES, ITEM_TYPES } from '../types';
 import { RegistryItem } from '../lib/supabase';
 import PublicRegistry from './PublicRegistry';
@@ -11,24 +11,315 @@ type Step = 'event' | 'theme' | 'details' | 'items';
 
 type RegistryBuilderProps = {
   onBack?: () => void;
+  onComplete?: () => void;
 };
 
-const RegistryBuilder = ({ onBack }: RegistryBuilderProps) => {
+const RegistryBuilder = ({ onBack, onComplete }: RegistryBuilderProps) => {
   const { currentRegistry, updateRegistry, currentItems, addItem, updateItem, removeItem, updateItems } = useRegistry();
   const [currentStep, setCurrentStep] = useState<Step>('event');
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(true);
   const [editingItem, setEditingItem] = useState<RegistryItem | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [hasGeneratedStarterItems, setHasGeneratedStarterItems] = useState(false);
+  const [showCompletionScreen, setShowCompletionScreen] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-  const steps: { key: Step; label: string }[] = [
-    { key: 'event', label: 'Event' },
-    { key: 'theme', label: 'Theme' },
-    { key: 'details', label: 'Details' },
-    { key: 'items', label: 'Items' },
+  const steps: { key: Step; label: string; hint?: string }[] = [
+    { key: 'event', label: 'Event', hint: 'Next: Pick theme, then fully customize your page' },
+    { key: 'theme', label: 'Theme', hint: 'Next: Add details, then fully customize your page' },
+    { key: 'details', label: 'Details', hint: 'Next: Add items, then fully customize your page' },
+    { key: 'items', label: 'Items', hint: 'Then: Open full drag-and-drop editor' },
   ];
 
   const currentStepIndex = steps.findIndex(s => s.key === currentStep);
+
+  const handleNext = () => {
+    const nextIndex = currentStepIndex + 1;
+    if (nextIndex < steps.length) {
+      setCurrentStep(steps[nextIndex].key);
+    }
+  };
+
+  const handlePrevious = () => {
+    const prevIndex = currentStepIndex - 1;
+    if (prevIndex >= 0) {
+      setCurrentStep(steps[prevIndex].key);
+    }
+  };
+
+  // Auto-generate starter items when reaching items step
+  useEffect(() => {
+    if (currentStep === 'items' && !hasGeneratedStarterItems && currentItems.length === 0 && currentRegistry?.event_type) {
+      generateStarterItems();
+      setHasGeneratedStarterItems(true);
+    }
+  }, [currentStep, hasGeneratedStarterItems, currentItems.length, currentRegistry?.event_type]);
+
+  const generateStarterItems = () => {
+    const eventType = currentRegistry?.event_type || 'custom';
+    const newItems: RegistryItem[] = [];
+
+    if (eventType === 'wedding') {
+      // Honeymoon Fund
+      newItems.push({
+        id: crypto.randomUUID(),
+        registry_id: '',
+        title: 'Honeymoon Fund',
+        description: 'Help us create unforgettable memories on our honeymoon',
+        image_url: 'https://images.pexels.com/photos/1371360/pexels-photo-1371360.jpeg?auto=compress&cs=tinysrgb&w=800',
+        item_type: 'cash',
+        price_amount: 500000,
+        current_amount: 0,
+        external_link: '',
+        category: 'honeymoon',
+        priority: 0,
+        is_fulfilled: false,
+        created_at: new Date().toISOString(),
+      });
+      // Kitchen items
+      newItems.push({
+        id: crypto.randomUUID(),
+        registry_id: '',
+        title: 'KitchenAid Stand Mixer',
+        description: 'Professional-grade mixer for our new kitchen',
+        image_url: 'https://m.media-amazon.com/images/I/51HXid8ExKL._AC_SL1000_.jpg',
+        item_type: 'product',
+        price_amount: 35000,
+        current_amount: 0,
+        external_link: '',
+        category: 'kitchen',
+        priority: 1,
+        is_fulfilled: false,
+        created_at: new Date().toISOString(),
+      });
+      newItems.push({
+        id: crypto.randomUUID(),
+        registry_id: '',
+        title: 'Cookware Set',
+        description: 'High-quality stainless steel cookware',
+        image_url: 'https://images.unsplash.com/photo-1556911220-bff31c812dba?w=400',
+        item_type: 'product',
+        price_amount: 28000,
+        current_amount: 0,
+        external_link: '',
+        category: 'kitchen',
+        priority: 2,
+        is_fulfilled: false,
+        created_at: new Date().toISOString(),
+      });
+      newItems.push({
+        id: crypto.randomUUID(),
+        registry_id: '',
+        title: 'Coffee Maker',
+        description: 'Premium espresso machine',
+        image_url: 'https://images.unsplash.com/photo-1517668808823-f8c76b0219e0?w=400',
+        item_type: 'product',
+        price_amount: 12000,
+        current_amount: 0,
+        external_link: '',
+        category: 'kitchen',
+        priority: 3,
+        is_fulfilled: false,
+        created_at: new Date().toISOString(),
+      });
+      // Bedroom items
+      newItems.push({
+        id: crypto.randomUUID(),
+        registry_id: '',
+        title: 'Bedding Set',
+        description: 'Luxury linens for our master bedroom',
+        image_url: 'https://images.unsplash.com/photo-1586105251261-72a756497a11?w=400',
+        item_type: 'product',
+        price_amount: 18000,
+        current_amount: 0,
+        external_link: '',
+        category: 'home',
+        priority: 4,
+        is_fulfilled: false,
+        created_at: new Date().toISOString(),
+      });
+      newItems.push({
+        id: crypto.randomUUID(),
+        registry_id: '',
+        title: 'Throw Pillows',
+        description: 'Decorative accent pillows',
+        image_url: 'https://images.unsplash.com/photo-1586105449897-20b5efeb3233?w=400',
+        item_type: 'product',
+        price_amount: 6500,
+        current_amount: 0,
+        external_link: '',
+        category: 'home',
+        priority: 5,
+        is_fulfilled: false,
+        created_at: new Date().toISOString(),
+      });
+    } else if (eventType === 'baby') {
+      // College Fund
+      newItems.push({
+        id: crypto.randomUUID(),
+        registry_id: '',
+        title: 'College Fund',
+        description: 'Help us save for our child\'s education',
+        image_url: 'https://images.pexels.com/photos/1371360/pexels-photo-1371360.jpeg?auto=compress&cs=tinysrgb&w=800',
+        item_type: 'cash',
+        price_amount: 1000000,
+        current_amount: 0,
+        external_link: '',
+        category: 'baby',
+        priority: 0,
+        is_fulfilled: false,
+        created_at: new Date().toISOString(),
+      });
+      // Nursery items
+      newItems.push({
+        id: crypto.randomUUID(),
+        registry_id: '',
+        title: 'Crib',
+        description: 'Safe and comfortable sleeping space',
+        image_url: 'https://images.unsplash.com/photo-1506439773649-6e0eb8cfb237?w=400',
+        item_type: 'product',
+        price_amount: 45000,
+        current_amount: 0,
+        external_link: '',
+        category: 'baby',
+        priority: 1,
+        is_fulfilled: false,
+        created_at: new Date().toISOString(),
+      });
+      newItems.push({
+        id: crypto.randomUUID(),
+        registry_id: '',
+        title: 'Diaper Fund',
+        description: 'Help with ongoing baby essentials',
+        image_url: 'https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=400',
+        item_type: 'cash',
+        price_amount: 50000,
+        current_amount: 0,
+        external_link: '',
+        category: 'baby',
+        priority: 2,
+        is_fulfilled: false,
+        created_at: new Date().toISOString(),
+      });
+      newItems.push({
+        id: crypto.randomUUID(),
+        registry_id: '',
+        title: 'Baby Monitor',
+        description: 'Smart video monitor with night vision',
+        image_url: 'https://images.unsplash.com/photo-1586105449897-20b5efeb3233?w=400',
+        item_type: 'product',
+        price_amount: 15000,
+        current_amount: 0,
+        external_link: '',
+        category: 'baby',
+        priority: 3,
+        is_fulfilled: false,
+        created_at: new Date().toISOString(),
+      });
+    } else if (eventType === 'birthday') {
+      // Experience Fund
+      newItems.push({
+        id: crypto.randomUUID(),
+        registry_id: '',
+        title: 'Experience Fund',
+        description: 'Help create amazing memories',
+        image_url: 'https://images.pexels.com/photos/1371360/pexels-photo-1371360.jpeg?auto=compress&cs=tinysrgb&w=800',
+        item_type: 'cash',
+        price_amount: 200000,
+        current_amount: 0,
+        external_link: '',
+        category: 'experience',
+        priority: 0,
+        is_fulfilled: false,
+        created_at: new Date().toISOString(),
+      });
+      newItems.push({
+        id: crypto.randomUUID(),
+        registry_id: '',
+        title: 'Cooking Class',
+        description: 'Private culinary workshop',
+        image_url: 'https://tripleseat.com/wp-content/uploads/2021/05/How-to-Host-a-Cooking-Class-at-Your-Venue.jpg',
+        item_type: 'experience',
+        price_amount: 15000,
+        current_amount: 0,
+        external_link: '',
+        category: 'experience',
+        priority: 1,
+        is_fulfilled: false,
+        created_at: new Date().toISOString(),
+      });
+      newItems.push({
+        id: crypto.randomUUID(),
+        registry_id: '',
+        title: 'Concert Tickets',
+        description: 'VIP experience at favorite venue',
+        image_url: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400',
+        item_type: 'experience',
+        price_amount: 25000,
+        current_amount: 0,
+        external_link: '',
+        category: 'experience',
+        priority: 2,
+        is_fulfilled: false,
+        created_at: new Date().toISOString(),
+      });
+    } else {
+      // Default: Cash Fund + generic items
+      newItems.push({
+        id: crypto.randomUUID(),
+        registry_id: '',
+        title: 'General Fund',
+        description: 'Help us with our celebration',
+        image_url: 'https://images.pexels.com/photos/1371360/pexels-photo-1371360.jpeg?auto=compress&cs=tinysrgb&w=800',
+        item_type: 'cash',
+        price_amount: 100000,
+        current_amount: 0,
+        external_link: '',
+        category: 'general',
+        priority: 0,
+        is_fulfilled: false,
+        created_at: new Date().toISOString(),
+      });
+      newItems.push({
+        id: crypto.randomUUID(),
+        registry_id: '',
+        title: 'Gift Card',
+        description: 'Flexible gift option',
+        image_url: 'https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=400',
+        item_type: 'cash',
+        price_amount: 5000,
+        current_amount: 0,
+        external_link: '',
+        category: 'general',
+        priority: 1,
+        is_fulfilled: false,
+        created_at: new Date().toISOString(),
+      });
+      newItems.push({
+        id: crypto.randomUUID(),
+        registry_id: '',
+        title: 'Custom Item',
+        description: 'Add your own special item',
+        image_url: 'https://images.unsplash.com/photo-1506439773649-6e0eb8cfb237?w=400',
+        item_type: 'product',
+        price_amount: 0,
+        current_amount: 0,
+        external_link: '',
+        category: 'general',
+        priority: 2,
+        is_fulfilled: false,
+        created_at: new Date().toISOString(),
+      });
+    }
+
+    // Add all items at once to avoid multiple re-renders
+    const itemsWithPriority = newItems.map((item, index) => ({
+      ...item,
+      priority: index,
+    }));
+    itemsWithPriority.forEach(item => addItem(item));
+  };
 
   const handleDragStart = (e: React.DragEvent, itemId: string) => {
     setDraggedItem(itemId);
@@ -120,20 +411,6 @@ const RegistryBuilder = ({ onBack }: RegistryBuilderProps) => {
     addItem(newItem);
   };
 
-  const handleNext = () => {
-    const nextIndex = currentStepIndex + 1;
-    if (nextIndex < steps.length) {
-      setCurrentStep(steps[nextIndex].key);
-    }
-  };
-
-  const handlePrevious = () => {
-    const prevIndex = currentStepIndex - 1;
-    if (prevIndex >= 0) {
-      setCurrentStep(steps[prevIndex].key);
-    }
-  };
-
   const canProceed = () => {
     switch (currentStep) {
       case 'event':
@@ -214,6 +491,20 @@ const RegistryBuilder = ({ onBack }: RegistryBuilderProps) => {
                   )}
                 </React.Fragment>
               ))}
+            </div>
+            {/* Foreshadowing hint */}
+            <div className="pb-3 text-center">
+              <p className="text-xs text-neutral-500">
+                {currentStepIndex < steps.length - 1 ? (
+                  <>
+                    Quick setup first → <span className="font-medium text-neutral-700">Full drag-and-drop editor next</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="font-medium text-neutral-700">You'll be able to move, resize, and customize everything after setup.</span>
+                  </>
+                )}
+              </p>
             </div>
           </div>
         </div>
@@ -389,38 +680,75 @@ const RegistryBuilder = ({ onBack }: RegistryBuilderProps) => {
 
                   <div>
                     <label className="block text-body-sm font-medium text-neutral-900 mb-2.5">
-                      Date & Location
+                      Date
                     </label>
                     <input
-                      type="text"
-                      value={currentRegistry?.subtitle || ''}
-                      onChange={(e) => updateRegistry({ subtitle: e.target.value })}
-                      placeholder="June 15, 2025 · Napa Valley"
+                      type="date"
+                      value={currentRegistry?.event_date || ''}
+                      onChange={(e) => updateRegistry({ event_date: e.target.value })}
                       className="input-field"
                     />
                   </div>
 
                   <div>
                     <label className="block text-body-sm font-medium text-neutral-900 mb-2.5">
-                      Hero Image URL
+                      Location
                     </label>
                     <input
-                      type="url"
-                      value={currentRegistry?.hero_image_url || ''}
-                      onChange={(e) => updateRegistry({ hero_image_url: e.target.value })}
-                      placeholder="https://images.pexels.com/..."
+                      type="text"
+                      value={currentRegistry?.subtitle || ''}
+                      onChange={(e) => updateRegistry({ subtitle: e.target.value })}
+                      placeholder="Napa Valley, CA"
                       className="input-field"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-body-sm font-medium text-neutral-900 mb-2.5">
+                      Hero Image (Optional)
+                    </label>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            updateRegistry({ hero_image_url: reader.result as string });
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      className="block w-full text-sm text-neutral-600 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-2 file:border-neutral-300 file:bg-white file:text-neutral-700 hover:file:bg-neutral-50 hover:file:border-neutral-400 file:cursor-pointer file:transition-all file:duration-200 cursor-pointer"
+                    />
                     {currentRegistry?.hero_image_url && (
-                      <div className="mt-3 rounded-xl overflow-hidden border-2 border-neutral-200 max-w-md">
-                        <img
-                          src={currentRegistry.hero_image_url}
-                          alt="Hero preview"
-                          className="w-full h-48 object-cover"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
+                      <div className="mt-3 relative max-w-md">
+                        <div className="rounded-xl overflow-hidden border-2 border-neutral-200">
+                          <img
+                            src={currentRegistry.hero_image_url}
+                            alt="Hero preview"
+                            className="w-full h-48 object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            updateRegistry({ hero_image_url: '' });
+                            // Reset the file input
+                            if (fileInputRef.current) {
+                              fileInputRef.current.value = '';
+                            }
                           }}
-                        />
+                          className="mt-2 px-3 py-1.5 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors flex items-center space-x-1.5"
+                        >
+                          <Trash2 className="w-4 h-4" strokeWidth={1.5} />
+                          <span>Remove image</span>
+                        </button>
                       </div>
                     )}
                   </div>
@@ -692,19 +1020,22 @@ const RegistryBuilder = ({ onBack }: RegistryBuilderProps) => {
                   disabled={!canProceed()}
                   className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
                 >
-                  <span>Next</span>
+                  <span>Continue</span>
+                  <span className="text-xs opacity-75">→ We'll personalize this later</span>
                   <ArrowRight className="w-4 h-4" strokeWidth={1.5} />
                 </button>
               ) : (
                 <button
                   onClick={() => {
                     updateRegistry({ is_published: true });
-                    alert('Registry published! (This would save to database)');
+                    setShowCompletionScreen(true);
                   }}
                   disabled={currentItems.length === 0}
-                  className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
                 >
-                  Publish Registry
+                  <span>Finish Setup</span>
+                  <span className="text-xs opacity-75">→ Open Full Editor</span>
+                  <ArrowRight className="w-4 h-4" strokeWidth={1.5} />
                 </button>
               )}
               </div>
@@ -714,8 +1045,19 @@ const RegistryBuilder = ({ onBack }: RegistryBuilderProps) => {
 
           {showPreview && (
             <div className="hidden lg:block w-1/2 border-l border-neutral-200 bg-white overflow-y-auto">
-              <div className="sticky top-0 bg-white border-b border-neutral-200 px-6 py-4 z-10">
+              <div className="sticky top-0 bg-white border-b border-neutral-200 px-6 py-4 z-10 flex items-center justify-between">
                 <h3 className="text-sm font-medium text-neutral-900">Live Preview</h3>
+                {/* Locked Edit Layout button during onboarding */}
+                {currentStepIndex < steps.length - 1 && (
+                  <button
+                    disabled
+                    className="px-3 py-1.5 text-xs font-medium text-neutral-400 bg-neutral-50 border border-neutral-200 rounded-lg flex items-center space-x-1.5 cursor-not-allowed"
+                    title="Finish setup to unlock full editor"
+                  >
+                    <Lock className="w-3.5 h-3.5" strokeWidth={1.5} />
+                    <span>Customize layout in builder mode</span>
+                  </button>
+                )}
               </div>
               <div className="p-6">
                 {currentRegistry && (
@@ -741,6 +1083,63 @@ const RegistryBuilder = ({ onBack }: RegistryBuilderProps) => {
           }}
           onClose={() => setEditingItem(null)}
         />
+      )}
+
+      {/* Completion Screen */}
+      {showCompletionScreen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8 md:p-12 animate-fade-in">
+            <div className="text-center mb-8">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h2 className="text-display-3 font-light tracking-tight text-neutral-900 mb-3">
+                Your registry is live!
+              </h2>
+              <p className="text-body-lg text-neutral-600 font-light mb-6">
+                Here's what your guests will see. You can now customize anything.
+              </p>
+            </div>
+
+            {/* Preview of registry */}
+            <div className="mb-8 rounded-xl border-2 border-neutral-200 overflow-hidden max-h-[400px] overflow-y-auto">
+              {currentRegistry && (
+                <PublicRegistry
+                  registry={currentRegistry as any}
+                  items={currentItems.sort((a, b) => a.priority - b.priority)}
+                  isPreview={true}
+                />
+              )}
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={() => {
+                  if (onComplete) {
+                    onComplete();
+                  } else {
+                    setShowCompletionScreen(false);
+                  }
+                }}
+                className="btn-primary flex-1 flex items-center justify-center space-x-2"
+              >
+                <span>Open Drag-and-Drop Builder</span>
+                <ArrowRight className="w-4 h-4" strokeWidth={1.5} />
+              </button>
+              <button
+                onClick={() => {
+                  setShowCompletionScreen(false);
+                }}
+                className="btn-secondary flex-1"
+              >
+                Share Later
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

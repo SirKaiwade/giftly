@@ -145,7 +145,7 @@ const LandingPage = ({ onGetStarted, onViewExample }: LandingPageProps) => {
                     className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm"
                     style={{ backgroundColor: themeColors.accent }}
                   >
-                    AM
+                    JM
                   </div>
                   <div className="flex-1">
                     <div 

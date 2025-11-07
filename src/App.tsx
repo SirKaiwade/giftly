@@ -4,10 +4,11 @@ import PublicRegistry from './components/PublicRegistry';
 import AdminDashboard from './components/AdminDashboard';
 import LandingPage from './components/LandingPage';
 import RegistryBuilder from './components/RegistryBuilder';
+import CanvasEditor from './components/CanvasEditor';
 import { Registry, RegistryItem, Contribution } from './lib/supabase';
 import { Eye, BarChart3 } from 'lucide-react';
 
-type View = 'landing' | 'builder' | 'public' | 'admin';
+type View = 'landing' | 'builder' | 'canvas' | 'public' | 'admin';
 
 const MOCK_REGISTRY: Registry = {
   id: '1',
@@ -161,7 +162,16 @@ function AppContent() {
         />
       )}
 
-      {currentView === 'builder' && <RegistryBuilder onBack={() => setCurrentView('landing')} />}
+      {currentView === 'builder' && (
+        <RegistryBuilder
+          onBack={() => setCurrentView('landing')}
+          onComplete={() => setCurrentView('canvas')}
+        />
+      )}
+
+      {currentView === 'canvas' && (
+        <CanvasEditor onBack={() => setCurrentView('builder')} />
+      )}
 
       {currentView === 'public' && (
         <div>
