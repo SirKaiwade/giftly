@@ -126,7 +126,7 @@ const LandingPage = ({ onGetStarted, onViewExample }: LandingPageProps) => {
             </div>
 
             <div 
-              className="rounded-2xl shadow-2xl border-2 overflow-hidden max-h-[520px] transition-all duration-500 hover:shadow-3xl"
+              className="rounded-2xl shadow-2xl border-2 overflow-hidden max-h-[580px] transition-all duration-500 hover:shadow-3xl"
               style={{ 
                 backgroundColor: themeColors.background,
                 borderColor: themeColors.border 
@@ -180,7 +180,7 @@ const LandingPage = ({ onGetStarted, onViewExample }: LandingPageProps) => {
               {/* Preview Content */}
               <div 
                 ref={previewScrollRef}
-                className="px-4 py-4 max-h-[420px] overflow-y-auto scrollbar-hide transition-colors duration-500 cursor-pointer"
+                className="px-4 py-4 max-h-[480px] overflow-y-auto scrollbar-hide transition-colors duration-500 cursor-pointer"
                 style={{ backgroundColor: themeColors.background }}
               >
                 {/* Hero Cash Fund Item */}
