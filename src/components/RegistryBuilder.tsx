@@ -1,17 +1,284 @@
 import React, { useState, useEffect } from 'react';
 import { useRegistry } from '../contexts/RegistryContext';
-import { ArrowLeft, ArrowRight, Eye, GripVertical, Plus, Edit2, Trash2, Lock } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Eye, GripVertical, Plus, Edit2, Trash2 } from 'lucide-react';
 import { EVENT_TYPES, THEMES, ITEM_TYPES } from '../types';
-import { RegistryItem } from '../lib/supabase';
+import { RegistryItem, Registry } from '../lib/supabase';
 import PublicRegistry from './PublicRegistry';
 import ItemEditModal from './ItemEditModal';
-import { formatCurrency } from '../utils/helpers';
+import { formatCurrency, calculateProgress } from '../utils/helpers';
 
 type Step = 'event' | 'theme' | 'details' | 'items';
 
 type RegistryBuilderProps = {
   onBack?: () => void;
   onComplete?: () => void;
+};
+
+// Compact preview component - mini version of the actual registry
+const CompactPreview = ({ registry, items }: { registry: Partial<Registry>; items: RegistryItem[] }) => {
+  const theme = THEMES.find(t => t.value === registry.theme) || THEMES[0];
+  const themeColors = theme.colors;
+
+  // Group items by category like the real registry
+  const groupedItems = items.reduce((acc, item) => {
+    if (!acc[item.category]) {
+      acc[item.category] = [];
+    }
+    acc[item.category].push(item);
+    return acc;
+  }, {} as Record<string, RegistryItem[]>);
+
+  const categoryLabels: Record<string, string> = {
+    honeymoon: 'Honeymoon Fund',
+    experience: 'Experiences',
+    charity: 'Charitable Giving',
+    home: 'For Our Home',
+    kitchen: 'Kitchen',
+    bedroom: 'Bedroom',
+    living: 'Living Room',
+    general: 'General Registry',
+    baby: 'Baby',
+  };
+
+  const categories = Object.keys(groupedItems).sort();
+  const totalContributions = items.reduce((sum, item) => sum + item.current_amount, 0);
+  const totalGoal = items.reduce((sum, item) => sum + item.price_amount, 0);
+
+  return (
+    <div 
+      className="rounded-xl border overflow-hidden shadow-lg transition-all duration-500 h-full flex flex-col"
+      style={{ 
+        backgroundColor: themeColors.background,
+        borderColor: themeColors.border 
+      }}
+    >
+      {/* Hero Image Preview */}
+      {registry.hero_image_url && (
+        <div className="relative h-24 overflow-hidden flex-shrink-0">
+          <img
+            src={registry.hero_image_url}
+            alt={registry.title}
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/20 to-transparent" />
+        </div>
+      )}
+
+      {/* Header */}
+      <div 
+        className={`border-b px-4 py-3 flex-shrink-0 transition-colors duration-500 ${registry.hero_image_url ? 'bg-white/90 backdrop-blur-sm' : ''}`}
+        style={{ 
+          backgroundColor: registry.hero_image_url ? 'transparent' : themeColors.surface,
+          borderColor: themeColors.border 
+        }}
+      >
+        <div className="flex items-center space-x-2.5">
+          <div 
+            className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0 shadow-sm"
+            style={{ backgroundColor: themeColors.accent }}
+          >
+            {registry.title ? registry.title.charAt(0).toUpperCase() : 'R'}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div 
+              className="text-xs font-semibold truncate transition-colors duration-500"
+              style={{ color: themeColors.text }}
+            >
+              {registry.title || 'Your Registry'}
+            </div>
+            <div 
+              className="text-[10px] truncate transition-colors duration-500 mt-0.5"
+              style={{ color: themeColors.textMuted }}
+            >
+              {registry.subtitle || 'giftendo.com/your-registry'}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Content - Registry items in grid layout */}
+      <div 
+        className="px-4 py-3 flex-1 overflow-hidden transition-colors duration-500"
+        style={{ backgroundColor: themeColors.background }}
+      >
+        {categories.length > 0 ? (
+          <div className="h-full flex flex-col">
+            <div className="flex-1 overflow-y-auto scrollbar-thin pr-1" style={{ scrollbarColor: `${themeColors.border} transparent` }}>
+              <div className="space-y-4">
+                {categories.map((category) => {
+                  const categoryItems = groupedItems[category].slice(0, 4); // Max 4 items per category in preview
+                  return (
+                    <section key={category} className="space-y-2">
+                      {/* Category Header */}
+                      <div>
+                        <h2 
+                          className="text-[9px] tracking-wider uppercase mb-1.5 font-semibold"
+                          style={{ color: themeColors.textMuted }}
+                        >
+                          {categoryLabels[category] || category}
+                        </h2>
+                        <div 
+                          className="h-px"
+                          style={{ backgroundColor: themeColors.border }}
+                        />
+                      </div>
+
+                      {/* Items Grid - 3 columns for compact preview */}
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {categoryItems.map((item) => (
+                          <div
+                            key={item.id}
+                            className="group text-left"
+                          >
+                            <div 
+                              className="aspect-square mb-1 overflow-hidden rounded-md shadow-sm hover:shadow transition-all duration-300"
+                              style={{ backgroundColor: themeColors.surface }}
+                            >
+                              {item.image_url ? (
+                                <img
+                                  src={item.image_url}
+                                  alt={item.title}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                />
+                              ) : (
+                                <div 
+                                  className="w-full h-full flex items-center justify-center"
+                                  style={{ backgroundColor: themeColors.surface }}
+                                >
+                                  <span 
+                                    className="text-sm"
+                                    style={{ color: themeColors.textMuted }}
+                                  >
+                                    🎁
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                            <h3 
+                              className="text-[9px] font-medium mb-0.5 line-clamp-1 leading-tight"
+                              style={{ color: themeColors.text }}
+                            >
+                              {item.title}
+                            </h3>
+                            {item.item_type === 'cash' ? (
+                              <div>
+                                <div className="flex items-baseline justify-between mb-0.5">
+                                  <span 
+                                    className="text-[8px] font-semibold"
+                                    style={{ color: themeColors.text }}
+                                  >
+                                    {formatCurrency(item.current_amount)}
+                                  </span>
+                                </div>
+                                <div 
+                                  className="w-full h-0.5 rounded-full overflow-hidden"
+                                  style={{ backgroundColor: themeColors.borderLight }}
+                                >
+                                  <div
+                                    className="h-full rounded-full transition-all duration-500"
+                                    style={{
+                                      width: `${Math.min(calculateProgress(item.current_amount, item.price_amount), 100)}%`,
+                                      backgroundColor: themeColors.accent,
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            ) : (
+                              <div 
+                                className="text-[8px] font-semibold"
+                                style={{ color: themeColors.text }}
+                              >
+                                {formatCurrency(item.price_amount)}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      {groupedItems[category].length > 4 && (
+                        <div 
+                          className="text-[9px] text-center py-1"
+                          style={{ color: themeColors.textMuted }}
+                        >
+                          +{groupedItems[category].length - 4} more
+                        </div>
+                      )}
+                    </section>
+                  );
+                })}
+              </div>
+            </div>
+            
+            {/* Footer Summary */}
+            {totalContributions > 0 && (
+              <div 
+                className="mt-3 pt-3 border-t flex-shrink-0"
+                style={{ borderColor: themeColors.border }}
+              >
+                <div className="flex items-center justify-between mb-1.5">
+                  <span 
+                    className="text-[10px] font-medium"
+                    style={{ color: themeColors.textMuted }}
+                  >
+                    Total raised
+                  </span>
+                  <span 
+                    className="text-xs font-bold"
+                    style={{ color: themeColors.text }}
+                  >
+                    {formatCurrency(totalContributions)}
+                  </span>
+                </div>
+                {totalGoal > 0 && (
+                  <div 
+                    className="w-full h-1 rounded-full overflow-hidden"
+                    style={{ backgroundColor: themeColors.borderLight }}
+                  >
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${Math.min(calculateProgress(totalContributions, totalGoal), 100)}%`,
+                        backgroundColor: themeColors.accent,
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div 
+            className="text-center h-full flex flex-col items-center justify-center transition-colors duration-500"
+            style={{ color: themeColors.textMuted }}
+          >
+            <div 
+              className="w-12 h-12 rounded-full flex items-center justify-center mb-3"
+              style={{ backgroundColor: themeColors.surface }}
+            >
+              <span className="text-2xl">🎁</span>
+            </div>
+            <p className="text-xs font-medium mb-0.5">No items yet</p>
+            <p className="text-[10px] opacity-75">Add items to see preview</p>
+          </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div 
+        className="px-4 py-2 border-t flex-shrink-0 transition-colors duration-500"
+        style={{ 
+          backgroundColor: themeColors.surface,
+          borderColor: themeColors.border 
+        }}
+      >
+        <div 
+          className="text-[9px] text-center transition-colors duration-500 opacity-70"
+          style={{ color: themeColors.textMuted }}
+        >
+          Live preview • Full editor after setup
+        </div>
+      </div>
+    </div>
+  );
 };
 
 const RegistryBuilder = ({ onBack, onComplete }: RegistryBuilderProps) => {
@@ -514,8 +781,8 @@ const RegistryBuilder = ({ onBack, onComplete }: RegistryBuilderProps) => {
       <div className="flex-1 flex overflow-hidden">
         <>
           {/* Builder Panel */}
-          <div className={`flex-1 overflow-y-auto transition-all ${showPreview ? 'lg:w-1/2' : 'w-full'}`}>
-          <div className="max-w-3xl mx-auto px-6 lg:px-8 py-12">
+          <div className={`overflow-y-auto ${showPreview ? 'w-1/2' : 'w-full'} bg-white`}>
+          <div className="max-w-3xl mx-auto px-6 lg:px-8 py-10">
             {/* Event Selection */}
             {currentStep === 'event' && (
               <div className="space-y-10 animate-fade-in">
@@ -556,11 +823,11 @@ const RegistryBuilder = ({ onBack, onComplete }: RegistryBuilderProps) => {
 
             {/* Theme Selection */}
             {currentStep === 'theme' && (
-              <div className="space-y-10 animate-fade-in">
+              <div className="space-y-8 animate-fade-in">
                 <div>
                   <button
                     onClick={handlePrevious}
-                    className="text-body-sm text-neutral-600 hover:text-neutral-900 mb-8 flex items-center space-x-1.5 transition-colors group"
+                    className="text-body-sm text-neutral-600 hover:text-neutral-900 mb-6 flex items-center space-x-1.5 transition-colors group"
                   >
                     <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" strokeWidth={1.5} />
                     <span>Back</span>
@@ -571,40 +838,40 @@ const RegistryBuilder = ({ onBack, onComplete }: RegistryBuilderProps) => {
                   <p className="text-body-lg text-neutral-600 font-light">Select a style that matches your event's personality</p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {THEMES.map((theme) => (
                     <button
                       key={theme.value}
                       onClick={() => {
                         updateRegistry({ theme: theme.value });
                       }}
-                      className={`group relative p-8 rounded-3xl border-2 transition-all duration-500 text-left overflow-hidden hover-lift ${
+                      className={`group relative p-5 rounded-2xl border-2 transition-all duration-500 text-left overflow-hidden hover-lift ${
                         currentRegistry?.theme === theme.value
-                          ? 'border-neutral-900 shadow-large scale-[1.02]'
-                          : 'border-neutral-200 hover:border-neutral-400 hover:shadow-medium'
+                          ? 'border-neutral-900 shadow-lg scale-[1.02]'
+                          : 'border-neutral-200 hover:border-neutral-400 hover:shadow-md'
                       }`}
                       style={{
                         backgroundColor: currentRegistry?.theme === theme.value ? theme.colors.secondary : theme.colors.primary
                       }}
                     >
-                      {/* Color Preview Strip */}
-                      <div className="flex space-x-3 mb-6">
+                      {/* Color Preview Strip - Horizontal compact */}
+                      <div className="flex items-center space-x-2 mb-4">
                         <div
-                          className="w-14 h-14 rounded-2xl shadow-soft border-2 transition-transform duration-300 group-hover:scale-110"
+                          className="w-8 h-8 rounded-lg shadow-sm border transition-transform duration-300 group-hover:scale-110"
                           style={{ 
                             backgroundColor: theme.colors.primary,
                             borderColor: theme.colors.border
                           }}
                         />
                         <div
-                          className="w-14 h-14 rounded-2xl shadow-soft border-2 transition-transform duration-300 group-hover:scale-110"
+                          className="w-8 h-8 rounded-lg shadow-sm border transition-transform duration-300 group-hover:scale-110"
                           style={{ 
                             backgroundColor: theme.colors.secondary,
                             borderColor: theme.colors.border
                           }}
                         />
                         <div
-                          className="w-14 h-14 rounded-2xl shadow-soft border-2 transition-transform duration-300 group-hover:scale-110"
+                          className="w-8 h-8 rounded-lg shadow-sm border transition-transform duration-300 group-hover:scale-110"
                           style={{ 
                             backgroundColor: theme.colors.accent,
                             borderColor: theme.colors.border
@@ -612,33 +879,27 @@ const RegistryBuilder = ({ onBack, onComplete }: RegistryBuilderProps) => {
                         />
                       </div>
                       
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         <div 
-                          className="text-heading-3 font-medium"
+                          className="text-base font-semibold"
                           style={{ color: theme.colors.text }}
                         >
                           {theme.label}
                         </div>
                         <div 
-                          className="text-body-sm font-light"
+                          className="text-sm font-light line-clamp-1"
                           style={{ color: theme.colors.textMuted }}
                         >
                           {theme.description}
-                        </div>
-                        <div 
-                          className="text-body-sm pt-1"
-                          style={{ color: theme.colors.textLight }}
-                        >
-                          {theme.preview}
                         </div>
                       </div>
                       
                       {currentRegistry?.theme === theme.value && (
                         <div 
-                          className="absolute top-4 right-4 w-7 h-7 rounded-full flex items-center justify-center animate-scale-in-spring shadow-lg"
+                          className="absolute top-3 right-3 w-5 h-5 rounded-full flex items-center justify-center animate-scale-in-spring shadow-md"
                           style={{ backgroundColor: theme.colors.accent }}
                         >
-                          <div className="w-2.5 h-2.5 bg-white rounded-full" />
+                          <div className="w-2 h-2 bg-white rounded-full" />
                         </div>
                       )}
                     </button>
@@ -1044,27 +1305,20 @@ const RegistryBuilder = ({ onBack, onComplete }: RegistryBuilderProps) => {
           </div>
 
           {showPreview && (
-            <div className="hidden lg:block w-1/2 border-l border-neutral-200 bg-white overflow-y-auto">
-              <div className="sticky top-0 bg-white border-b border-neutral-200 px-6 py-4 z-10 flex items-center justify-between">
-                <h3 className="text-sm font-medium text-neutral-900">Live Preview</h3>
-                {/* Locked Edit Layout button during onboarding */}
-                {currentStepIndex < steps.length - 1 && (
-                  <button
-                    disabled
-                    className="px-3 py-1.5 text-xs font-medium text-neutral-400 bg-neutral-50 border border-neutral-200 rounded-lg flex items-center space-x-1.5 cursor-not-allowed"
-                    title="Finish setup to unlock full editor"
-                  >
-                    <Lock className="w-3.5 h-3.5" strokeWidth={1.5} />
-                    <span>Customize layout in builder mode</span>
-                  </button>
-                )}
+            <div className="hidden lg:block w-1/2 border-l border-neutral-200 bg-neutral-50 flex flex-col overflow-hidden">
+              <div className="flex-shrink-0 bg-white border-b border-neutral-200 px-6 py-4 z-10">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-neutral-900">Live Preview</h3>
+                    <p className="text-xs text-neutral-500 mt-0.5">See how your registry looks</p>
+                  </div>
+                </div>
               </div>
-              <div className="p-6">
+              <div className="flex-1 p-6 overflow-hidden min-h-0">
                 {currentRegistry && (
-                  <PublicRegistry
+                  <CompactPreview
                     registry={currentRegistry as any}
                     items={currentItems.sort((a, b) => a.priority - b.priority)}
-                    isPreview={true}
                   />
                 )}
               </div>

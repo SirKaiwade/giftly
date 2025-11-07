@@ -1,6 +1,6 @@
 export type EventType = 'wedding' | 'baby' | 'birthday' | 'housewarming' | 'graduation' | 'custom';
 
-export type Theme = 'minimal' | 'pastel' | 'dark' | 'floral' | 'gold';
+export type Theme = 'minimal' | 'pastel' | 'dark' | 'floral' | 'gold' | 'christmas' | 'custom';
 
 export type ItemType = 'cash' | 'product' | 'service' | 'experience' | 'charity';
 
@@ -138,6 +138,48 @@ export const THEMES: {
       surfaceElevated: '#ffffff',
     },
     preview: '✨ Opulent & warm'
+  },
+  {
+    value: 'christmas',
+    label: 'Festive Holiday',
+    description: 'Joyful and celebratory',
+    colors: { 
+      primary: '#f0fdf4', 
+      secondary: '#dc2626',
+      accent: '#16a34a',
+      accentLight: '#22c55e',
+      accentDark: '#15803d',
+      text: '#1f2937',
+      textLight: '#4b5563',
+      textMuted: '#6b7280',
+      border: '#bbf7d0',
+      borderLight: '#dcfce7',
+      background: '#ffffff',
+      surface: '#f0fdf4',
+      surfaceElevated: '#ffffff',
+    },
+    preview: '🎄 Joyful & celebratory'
+  },
+  {
+    value: 'custom',
+    label: 'Custom',
+    description: 'Create your own color scheme',
+    colors: { 
+      primary: '#ffffff', 
+      secondary: '#fafafa',
+      accent: '#6366f1',
+      accentLight: '#818cf8',
+      accentDark: '#4f46e5',
+      text: '#0a0a0a',
+      textLight: '#525252',
+      textMuted: '#737373',
+      border: '#e5e5e5',
+      borderLight: '#f5f5f5',
+      background: '#ffffff',
+      surface: '#fafafa',
+      surfaceElevated: '#ffffff',
+    },
+    preview: '🎨 Create your own'
   },
 ];
 

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ArrowUpRight, Share2 } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { ArrowUpRight, Share2, Edit2, X } from 'lucide-react';
 import { Registry, RegistryItem } from '../lib/supabase';
 import { formatCurrency, calculateProgress } from '../utils/helpers';
 import ContributionModal from './ContributionModal';
@@ -9,13 +9,29 @@ type PublicRegistryProps = {
   registry: Registry;
   items: RegistryItem[];
   isPreview?: boolean;
+  customThemeColors?: {
+    accent: string;
+    accentLight: string;
+    accentDark: string;
+    text: string;
+    textLight: string;
+    textMuted: string;
+    border: string;
+    borderLight: string;
+    background: string;
+    surface: string;
+    surfaceElevated: string;
+  } | null;
+  onUpdateRegistry?: (updates: Partial<Registry>) => void;
 };
 
-const PublicRegistry = ({ registry, items, isPreview = false }: PublicRegistryProps) => {
+const PublicRegistry = ({ registry, items, isPreview = false, customThemeColors, onUpdateRegistry }: PublicRegistryProps) => {
   const [selectedItem, setSelectedItem] = useState<RegistryItem | null>(null);
+  const [editingField, setEditingField] = useState<'title' | 'subtitle' | 'description' | null>(null);
+  const [editValue, setEditValue] = useState('');
   
   const theme = THEMES.find(t => t.value === registry.theme) || THEMES[0];
-  const themeColors = theme.colors;
+  const themeColors = registry.theme === 'custom' && customThemeColors ? customThemeColors : theme.colors;
 
   const groupedItems = items.reduce((acc, item) => {
     if (!acc[item.category]) {
@@ -53,20 +69,161 @@ const PublicRegistry = ({ registry, items, isPreview = false }: PublicRegistryPr
             className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 flex items-center justify-center z-20">
-            <div className="text-center px-6 max-w-4xl">
-              <h1 
-                className="text-display-2 md:text-display-1 font-light tracking-tight mb-4 text-balance drop-shadow-lg"
-                style={{ color: themeColors.text }}
-              >
-                {registry.title}
-              </h1>
-              {registry.subtitle && (
-                <p 
-                  className="text-body-lg font-light mb-8 drop-shadow-md"
-                  style={{ color: themeColors.textLight }}
-                >
-                  {registry.subtitle}
-                </p>
+            <div className="text-center px-6 max-w-4xl w-full">
+              {editingField === 'title' ? (
+                <div className="relative mb-4">
+                  <input
+                    type="text"
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    onBlur={() => {
+                      if (onUpdateRegistry) {
+                        onUpdateRegistry({ title: editValue || '' });
+                      }
+                      setEditingField(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        if (onUpdateRegistry) {
+                          onUpdateRegistry({ title: editValue || '' });
+                        }
+                        setEditingField(null);
+                      }
+                      if (e.key === 'Escape') {
+                        setEditingField(null);
+                      }
+                    }}
+                    className="text-display-2 md:text-display-1 font-light tracking-tight text-center w-full bg-white/90 backdrop-blur-sm px-4 py-2 rounded-lg border-2 border-white/50 focus:outline-none focus:ring-2 focus:ring-white/50"
+                    style={{ color: themeColors.text }}
+                    autoFocus
+                  />
+                </div>
+              ) : (
+                <div className="group relative mb-4">
+                  <h1 
+                    onClick={() => {
+                      if (isPreview && onUpdateRegistry) {
+                        setEditingField('title');
+                        setEditValue(registry.title || '');
+                      }
+                    }}
+                    className={`text-display-2 md:text-display-1 font-light tracking-tight mb-4 text-balance drop-shadow-lg ${isPreview && onUpdateRegistry ? 'cursor-text' : ''}`}
+                    style={{ color: themeColors.text }}
+                  >
+                    {registry.title || 'Your Event Here'}
+                  </h1>
+                  {isPreview && onUpdateRegistry && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingField('title');
+                        setEditValue(registry.title || '');
+                      }}
+                      className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 p-1.5 bg-white/80 backdrop-blur-sm rounded-full shadow-md hover:bg-white transition-all"
+                      title="Edit title"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" style={{ color: themeColors.text }} strokeWidth={1.5} />
+                    </button>
+                  )}
+                  {isPreview && onUpdateRegistry && registry.title && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onUpdateRegistry({ title: '' });
+                      }}
+                      className="absolute -top-2 -right-8 opacity-0 group-hover:opacity-100 p-1.5 bg-white/80 backdrop-blur-sm rounded-full shadow-md hover:bg-white transition-all"
+                      title="Clear title"
+                    >
+                      <X className="w-3.5 h-3.5" style={{ color: themeColors.text }} strokeWidth={1.5} />
+                    </button>
+                  )}
+                </div>
+              )}
+              {editingField === 'subtitle' ? (
+                <div className="relative mb-8">
+                  <input
+                    type="text"
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    onBlur={() => {
+                      if (onUpdateRegistry) {
+                        onUpdateRegistry({ subtitle: editValue || '' });
+                      }
+                      setEditingField(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        if (onUpdateRegistry) {
+                          onUpdateRegistry({ subtitle: editValue || '' });
+                        }
+                        setEditingField(null);
+                      }
+                      if (e.key === 'Escape') {
+                        setEditingField(null);
+                      }
+                    }}
+                    className="text-body-lg font-light text-center w-full bg-white/90 backdrop-blur-sm px-4 py-2 rounded-lg border-2 border-white/50 focus:outline-none focus:ring-2 focus:ring-white/50 drop-shadow-md"
+                    style={{ color: themeColors.textLight }}
+                    autoFocus
+                  />
+                </div>
+              ) : (
+                <div className="group relative mb-8">
+                  {registry.subtitle ? (
+                    <p 
+                      onClick={() => {
+                        if (isPreview && onUpdateRegistry) {
+                          setEditingField('subtitle');
+                          setEditValue(registry.subtitle || '');
+                        }
+                      }}
+                      className={`text-body-lg font-light mb-8 drop-shadow-md ${isPreview && onUpdateRegistry ? 'cursor-text' : ''}`}
+                      style={{ color: themeColors.textLight }}
+                    >
+                      {registry.subtitle}
+                    </p>
+                  ) : (
+                    <p 
+                      onClick={() => {
+                        if (isPreview && onUpdateRegistry) {
+                          setEditingField('subtitle');
+                          setEditValue(registry.subtitle || '');
+                        }
+                      }}
+                      className={`text-body-lg font-light mb-8 drop-shadow-md opacity-50 ${isPreview && onUpdateRegistry ? 'cursor-text' : ''}`}
+                      style={{ color: themeColors.textLight }}
+                    >
+                      Add a subtitle to describe your event
+                    </p>
+                  )}
+                  {isPreview && onUpdateRegistry && (
+                    <>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingField('subtitle');
+                          setEditValue(registry.subtitle || '');
+                        }}
+                        className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 p-1.5 bg-white/80 backdrop-blur-sm rounded-full shadow-md hover:bg-white transition-all"
+                        title="Edit subtitle"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" style={{ color: themeColors.textLight }} strokeWidth={1.5} />
+                      </button>
+                      {registry.subtitle && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onUpdateRegistry({ subtitle: '' });
+                          }}
+                          className="absolute -top-2 -right-8 opacity-0 group-hover:opacity-100 p-1.5 bg-white/80 backdrop-blur-sm rounded-full shadow-md hover:bg-white transition-all"
+                          title="Clear subtitle"
+                        >
+                          <X className="w-3.5 h-3.5" style={{ color: themeColors.textLight }} strokeWidth={1.5} />
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -80,46 +237,364 @@ const PublicRegistry = ({ registry, items, isPreview = false }: PublicRegistryPr
           style={{ borderColor: themeColors.border }}
         >
           <div className="max-w-6xl mx-auto px-6 lg:px-8 py-16 md:py-24 text-center">
-            <h1 
-              className="text-display-2 md:text-display-1 font-light tracking-tight mb-4 text-balance"
-              style={{ color: themeColors.text }}
-            >
-              {registry.title}
-            </h1>
-            {registry.subtitle && (
-              <p 
-                className="text-body-lg font-light mb-8"
-                style={{ color: themeColors.textLight }}
-              >
-                {registry.subtitle}
-              </p>
+            {editingField === 'title' ? (
+              <div className="relative mb-4">
+                <input
+                  type="text"
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  onBlur={() => {
+                    if (onUpdateRegistry) {
+                      onUpdateRegistry({ title: editValue || '' });
+                    }
+                    setEditingField(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      if (onUpdateRegistry) {
+                        onUpdateRegistry({ title: editValue || '' });
+                      }
+                      setEditingField(null);
+                    }
+                    if (e.key === 'Escape') {
+                      setEditingField(null);
+                    }
+                  }}
+                  className="text-display-2 md:text-display-1 font-light tracking-tight text-center w-full px-4 py-2 rounded-lg border-2 focus:outline-none focus:ring-2"
+                  style={{ 
+                    color: themeColors.text,
+                    borderColor: themeColors.border,
+                    backgroundColor: themeColors.surface,
+                    focusRingColor: themeColors.accent
+                  }}
+                  autoFocus
+                />
+              </div>
+            ) : (
+              <div className="group relative mb-4">
+                <h1 
+                  onClick={() => {
+                    if (isPreview && onUpdateRegistry) {
+                      setEditingField('title');
+                      setEditValue(registry.title || '');
+                    }
+                  }}
+                  className={`text-display-2 md:text-display-1 font-light tracking-tight mb-4 text-balance ${isPreview && onUpdateRegistry ? 'cursor-text' : ''}`}
+                  style={{ color: themeColors.text }}
+                >
+                  {registry.title || 'Your Event Here'}
+                </h1>
+                {isPreview && onUpdateRegistry && (
+                  <>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingField('title');
+                        setEditValue(registry.title || '');
+                      }}
+                      className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 p-1.5 rounded-full shadow-md transition-all"
+                      style={{ backgroundColor: themeColors.surfaceElevated }}
+                      title="Edit title"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" style={{ color: themeColors.textMuted }} strokeWidth={1.5} />
+                    </button>
+                    {registry.title && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onUpdateRegistry({ title: '' });
+                        }}
+                        className="absolute -top-2 -right-8 opacity-0 group-hover:opacity-100 p-1.5 rounded-full shadow-md transition-all"
+                        style={{ backgroundColor: themeColors.surfaceElevated }}
+                        title="Clear title"
+                      >
+                        <X className="w-3.5 h-3.5" style={{ color: themeColors.textMuted }} strokeWidth={1.5} />
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
             )}
-            {registry.description && (
-              <p 
-                className="text-body max-w-2xl mx-auto leading-relaxed"
-                style={{ color: themeColors.textMuted }}
-              >
-                {registry.description}
-              </p>
+            {editingField === 'subtitle' ? (
+              <div className="relative mb-8">
+                <input
+                  type="text"
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  onBlur={() => {
+                    if (onUpdateRegistry) {
+                      onUpdateRegistry({ subtitle: editValue || '' });
+                    }
+                    setEditingField(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      if (onUpdateRegistry) {
+                        onUpdateRegistry({ subtitle: editValue || '' });
+                      }
+                      setEditingField(null);
+                    }
+                    if (e.key === 'Escape') {
+                      setEditingField(null);
+                    }
+                  }}
+                  className="text-body-lg font-light text-center w-full px-4 py-2 rounded-lg border-2 focus:outline-none focus:ring-2"
+                  style={{ 
+                    color: themeColors.textLight,
+                    borderColor: themeColors.border,
+                    backgroundColor: themeColors.surface,
+                    focusRingColor: themeColors.accent
+                  }}
+                  autoFocus
+                />
+              </div>
+            ) : (
+              <div className="group relative mb-8">
+                {registry.subtitle ? (
+                  <p 
+                    onClick={() => {
+                      if (isPreview && onUpdateRegistry) {
+                        setEditingField('subtitle');
+                        setEditValue(registry.subtitle || '');
+                      }
+                    }}
+                    className={`text-body-lg font-light mb-8 ${isPreview && onUpdateRegistry ? 'cursor-text' : ''}`}
+                    style={{ color: themeColors.textLight }}
+                  >
+                    {registry.subtitle}
+                  </p>
+                ) : (
+                  <p 
+                    onClick={() => {
+                      if (isPreview && onUpdateRegistry) {
+                        setEditingField('subtitle');
+                        setEditValue(registry.subtitle || '');
+                      }
+                    }}
+                    className={`text-body-lg font-light mb-8 opacity-50 ${isPreview && onUpdateRegistry ? 'cursor-text' : ''}`}
+                    style={{ color: themeColors.textLight }}
+                  >
+                    Add a subtitle to describe your event
+                  </p>
+                )}
+                {isPreview && onUpdateRegistry && (
+                  <>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingField('subtitle');
+                        setEditValue(registry.subtitle || '');
+                      }}
+                      className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 p-1.5 rounded-full shadow-md transition-all"
+                      style={{ backgroundColor: themeColors.surfaceElevated }}
+                      title="Edit subtitle"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" style={{ color: themeColors.textMuted }} strokeWidth={1.5} />
+                    </button>
+                    {registry.subtitle && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onUpdateRegistry({ subtitle: '' });
+                        }}
+                        className="absolute -top-2 -right-8 opacity-0 group-hover:opacity-100 p-1.5 rounded-full shadow-md transition-all"
+                        style={{ backgroundColor: themeColors.surfaceElevated }}
+                        title="Clear subtitle"
+                      >
+                        <X className="w-3.5 h-3.5" style={{ color: themeColors.textMuted }} strokeWidth={1.5} />
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+            {editingField === 'description' ? (
+              <div className="relative">
+                <textarea
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  onBlur={() => {
+                    if (onUpdateRegistry) {
+                      onUpdateRegistry({ description: editValue || '' });
+                    }
+                    setEditingField(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setEditingField(null);
+                    }
+                  }}
+                  className="text-body max-w-2xl mx-auto w-full px-4 py-2 rounded-lg border-2 focus:outline-none focus:ring-2 resize-none"
+                  style={{ 
+                    color: themeColors.textMuted,
+                    borderColor: themeColors.border,
+                    backgroundColor: themeColors.surface,
+                    focusRingColor: themeColors.accent
+                  }}
+                  rows={3}
+                  autoFocus
+                />
+              </div>
+            ) : (
+              <div className="group relative">
+                {registry.description ? (
+                  <p 
+                    onClick={() => {
+                      if (isPreview && onUpdateRegistry) {
+                        setEditingField('description');
+                        setEditValue(registry.description || '');
+                      }
+                    }}
+                    className={`text-body max-w-2xl mx-auto leading-relaxed ${isPreview && onUpdateRegistry ? 'cursor-text' : ''}`}
+                    style={{ color: themeColors.textMuted }}
+                  >
+                    {registry.description}
+                  </p>
+                ) : (
+                  <p 
+                    onClick={() => {
+                      if (isPreview && onUpdateRegistry) {
+                        setEditingField('description');
+                        setEditValue(registry.description || '');
+                      }
+                    }}
+                    className={`text-body max-w-2xl mx-auto leading-relaxed opacity-50 ${isPreview && onUpdateRegistry ? 'cursor-text' : ''}`}
+                    style={{ color: themeColors.textMuted }}
+                  >
+                    Tell your guests about your event and what makes it special...
+                  </p>
+                )}
+                {isPreview && onUpdateRegistry && (
+                  <>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingField('description');
+                        setEditValue(registry.description || '');
+                      }}
+                      className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 p-1.5 rounded-full shadow-md transition-all"
+                      style={{ backgroundColor: themeColors.surfaceElevated }}
+                      title="Edit description"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" style={{ color: themeColors.textMuted }} strokeWidth={1.5} />
+                    </button>
+                    {registry.description && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onUpdateRegistry({ description: '' });
+                        }}
+                        className="absolute -top-2 -right-8 opacity-0 group-hover:opacity-100 p-1.5 rounded-full shadow-md transition-all"
+                        style={{ backgroundColor: themeColors.surfaceElevated }}
+                        title="Clear description"
+                      >
+                        <X className="w-3.5 h-3.5" style={{ color: themeColors.textMuted }} strokeWidth={1.5} />
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
             )}
           </div>
         </div>
       )}
       
       {/* Description below hero image */}
-      {registry.hero_image_url && registry.description && (
+      {registry.hero_image_url && (
         <div className="max-w-4xl mx-auto px-6 lg:px-8 py-12 text-center">
-          <p 
-            className="text-body-lg max-w-2xl mx-auto leading-relaxed"
-            style={{ color: themeColors.textMuted }}
-          >
-            {registry.description}
-          </p>
+          {editingField === 'description' ? (
+            <div className="relative">
+              <textarea
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onBlur={() => {
+                  if (onUpdateRegistry) {
+                    onUpdateRegistry({ description: editValue || '' });
+                  }
+                  setEditingField(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setEditingField(null);
+                  }
+                }}
+                className="text-body-lg max-w-2xl mx-auto w-full px-4 py-2 rounded-lg border-2 focus:outline-none focus:ring-2 resize-none"
+                style={{ 
+                  color: themeColors.textMuted,
+                  borderColor: themeColors.border,
+                  backgroundColor: themeColors.surface,
+                  focusRingColor: themeColors.accent
+                }}
+                rows={3}
+                autoFocus
+              />
+            </div>
+          ) : (
+            <div className="group relative">
+              {registry.description ? (
+                <p 
+                  onClick={() => {
+                    if (isPreview && onUpdateRegistry) {
+                      setEditingField('description');
+                      setEditValue(registry.description || '');
+                    }
+                  }}
+                  className={`text-body-lg max-w-2xl mx-auto leading-relaxed ${isPreview && onUpdateRegistry ? 'cursor-text' : ''}`}
+                  style={{ color: themeColors.textMuted }}
+                >
+                  {registry.description}
+                </p>
+              ) : (
+                <p 
+                  onClick={() => {
+                    if (isPreview && onUpdateRegistry) {
+                      setEditingField('description');
+                      setEditValue(registry.description || '');
+                    }
+                  }}
+                  className={`text-body-lg max-w-2xl mx-auto leading-relaxed opacity-50 ${isPreview && onUpdateRegistry ? 'cursor-text' : ''}`}
+                  style={{ color: themeColors.textMuted }}
+                >
+                  Tell your guests about your event and what makes it special...
+                </p>
+              )}
+              {isPreview && onUpdateRegistry && (
+                <>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingField('description');
+                      setEditValue(registry.description || '');
+                    }}
+                    className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 p-1.5 rounded-full shadow-md transition-all"
+                    style={{ backgroundColor: themeColors.surfaceElevated }}
+                    title="Edit description"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" style={{ color: themeColors.textMuted }} strokeWidth={1.5} />
+                  </button>
+                  {registry.description && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onUpdateRegistry({ description: '' });
+                      }}
+                      className="absolute -top-2 -right-8 opacity-0 group-hover:opacity-100 p-1.5 rounded-full shadow-md transition-all"
+                      style={{ backgroundColor: themeColors.surfaceElevated }}
+                      title="Clear description"
+                    >
+                      <X className="w-3.5 h-3.5" style={{ color: themeColors.textMuted }} strokeWidth={1.5} />
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
 
       <div className="max-w-6xl mx-auto px-6 lg:px-8 py-16">
-        {Object.entries(groupedItems).map(([category, categoryItems]) => (
+        {Object.keys(groupedItems).length > 0 ? (
+          Object.entries(groupedItems).map(([category, categoryItems]) => (
           <section key={category} className="mb-24 last:mb-0">
             <div className="mb-10">
               <h2 
@@ -266,7 +741,29 @@ const PublicRegistry = ({ registry, items, isPreview = false }: PublicRegistryPr
               ))}
             </div>
           </section>
-        ))}
+        ))
+        ) : (
+          <div className="text-center py-8">
+            <div 
+              className="inline-flex items-center justify-center w-16 h-16 rounded-full mb-4"
+              style={{ backgroundColor: themeColors.surface }}
+            >
+              <span className="text-3xl">🎁</span>
+            </div>
+            <h2 
+              className="text-xl font-light mb-2"
+              style={{ color: themeColors.text }}
+            >
+              No items yet
+            </h2>
+            <p 
+              className="text-sm opacity-60"
+              style={{ color: themeColors.textMuted }}
+            >
+              Add items to your registry to get started
+            </p>
+          </div>
+        )}
       </div>
 
       {registry.guestbook_enabled && (

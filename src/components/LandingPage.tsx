@@ -4,10 +4,11 @@ import { EVENT_TYPES, THEMES } from '../types';
 
 type LandingPageProps = {
   onGetStarted: () => void;
-  onViewExample?: () => void;
+  onSignIn?: () => void;
+  onSignUp?: () => void;
 };
 
-const LandingPage = ({ onGetStarted, onViewExample }: LandingPageProps) => {
+const LandingPage = ({ onGetStarted, onSignIn, onSignUp }: LandingPageProps) => {
   const [selectedTheme, setSelectedTheme] = useState<typeof THEMES[0]['value']>('minimal');
   const [showScrollHint, setShowScrollHint] = useState(true);
   const previewScrollRef = useRef<HTMLDivElement>(null);
@@ -48,13 +49,21 @@ const LandingPage = ({ onGetStarted, onViewExample }: LandingPageProps) => {
             <a href="#how-it-works" className="text-sm text-neutral-600 hover:text-neutral-900 transition-colors">How It Works</a>
             <a href="#occasions" className="text-sm text-neutral-600 hover:text-neutral-900 transition-colors">Occasions</a>
           </div>
-          <button
-            onClick={onGetStarted}
-            className="btn-primary text-sm flex items-center space-x-2"
-          >
-            <span>Get Started</span>
-            <ArrowRight className="w-4 h-4" strokeWidth={1.5} />
-          </button>
+          <div className="flex items-center space-x-3 sm:space-x-4">
+            <button
+              onClick={onSignIn}
+              className="px-4 sm:px-5 py-2 sm:py-2.5 text-sm text-neutral-700 hover:text-neutral-900 transition-all duration-200 font-medium rounded-lg hover:bg-neutral-50 active:scale-[0.98]"
+            >
+              Log In
+            </button>
+            <button
+              onClick={onSignUp}
+              className="btn-primary text-sm flex items-center justify-center space-x-2 px-4 sm:px-6 min-w-[110px] sm:min-w-[120px]"
+            >
+              <span className="whitespace-nowrap">Sign up Free</span>
+              <ArrowRight className="w-4 h-4 flex-shrink-0" strokeWidth={1.5} />
+            </button>
+          </div>
         </div>
       </nav>
 
@@ -85,12 +94,6 @@ const LandingPage = ({ onGetStarted, onViewExample }: LandingPageProps) => {
             >
               <span>Create Your Registry</span>
               <ArrowRight className="w-5 h-5" strokeWidth={1.5} />
-            </button>
-            <button
-              onClick={onViewExample}
-              className="btn-secondary w-full sm:w-auto px-10 py-4 text-base"
-            >
-              View Example
             </button>
           </div>
 

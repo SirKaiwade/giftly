@@ -13,30 +13,34 @@ const AdminDashboard = ({ registryId, items, contributions }: AdminDashboardProp
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'pending' | 'refunded'>('all');
 
-  const totalRaised = contributions
+  // Safety checks for empty arrays
+  const safeContributions = contributions || [];
+  const safeItems = items || [];
+
+  const totalRaised = safeContributions
     .filter(c => c.payment_status === 'paid')
     .reduce((sum, c) => sum + c.amount, 0);
 
-  const totalGoal = items.reduce((sum, item) => sum + item.price_amount, 0);
+  const totalGoal = safeItems.reduce((sum, item) => sum + item.price_amount, 0);
   const progressPercent = totalGoal > 0 ? (totalRaised / totalGoal) * 100 : 0;
 
-  const contributionCount = contributions.filter(c => c.payment_status === 'paid').length;
+  const contributionCount = safeContributions.filter(c => c.payment_status === 'paid').length;
   const uniqueContributors = new Set(
-    contributions.filter(c => c.payment_status === 'paid').map(c => c.contributor_email || c.contributor_name)
+    safeContributions.filter(c => c.payment_status === 'paid').map(c => c.contributor_email || c.contributor_name)
   ).size;
 
-  const filteredContributions = contributions.filter(c => {
+  const filteredContributions = safeContributions.filter(c => {
     const matchesSearch =
-      c.contributor_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.contributor_email.toLowerCase().includes(searchQuery.toLowerCase());
+      (c.contributor_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (c.contributor_email || '').toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'all' || c.payment_status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
   const exportToCSV = () => {
     const headers = ['Date', 'Name', 'Email', 'Item', 'Amount', 'Status', 'Message'];
-    const rows = contributions.map(c => {
-      const item = items.find(i => i.id === c.item_id);
+    const rows = safeContributions.map(c => {
+      const item = safeItems.find(i => i.id === c.item_id);
       return [
         new Date(c.created_at).toLocaleDateString(),
         c.contributor_name,
@@ -119,9 +123,9 @@ const AdminDashboard = ({ registryId, items, contributions }: AdminDashboardProp
               <span className="text-sm font-medium text-gray-600">Registry Items</span>
               <TrendingUp className="w-5 h-5 text-orange-600" />
             </div>
-            <p className="text-3xl font-bold text-gray-900">{items.length}</p>
+            <p className="text-3xl font-bold text-gray-900">{safeItems.length}</p>
             <p className="text-xs text-gray-500 mt-1">
-              {items.filter(i => i.is_fulfilled).length} fulfilled
+              {safeItems.filter(i => i.is_fulfilled).length} fulfilled
             </p>
           </div>
         </div>
@@ -188,7 +192,7 @@ const AdminDashboard = ({ registryId, items, contributions }: AdminDashboardProp
                   </tr>
                 ) : (
                   filteredContributions.map((contribution) => {
-                    const item = items.find(i => i.id === contribution.item_id);
+                    const item = safeItems.find(i => i.id === contribution.item_id);
                     return (
                       <tr key={contribution.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4">
@@ -248,10 +252,13 @@ const AdminDashboard = ({ registryId, items, contributions }: AdminDashboardProp
         <div className="mt-8 bg-white rounded-xl shadow-sm p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Items Performance</h2>
           <div className="space-y-4">
-            {items.map((item) => {
-              const itemContributions = contributions.filter(
-                c => c.item_id === item.id && c.payment_status === 'paid'
-              );
+            {safeItems.length === 0 ? (
+              <p className="text-gray-500 text-center py-8">No items in this registry yet.</p>
+            ) : (
+              safeItems.map((item) => {
+                const itemContributions = safeContributions.filter(
+                  c => c.item_id === item.id && c.payment_status === 'paid'
+                );
               const itemTotal = itemContributions.reduce((sum, c) => sum + c.amount, 0);
               const itemProgress =
                 item.price_amount > 0 ? (itemTotal / item.price_amount) * 100 : 0;
@@ -282,7 +289,8 @@ const AdminDashboard = ({ registryId, items, contributions }: AdminDashboardProp
                   </div>
                 </div>
               );
-            })}
+            })
+            )}
           </div>
         </div>
       </div>

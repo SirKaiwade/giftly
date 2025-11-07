@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, Loader2, Sparkles } from 'lucide-react';
 import { RegistryItem } from '../lib/supabase';
 import { ITEM_TYPES, CATEGORIES } from '../types';
-import { formatCurrency } from '../utils/helpers';
+import { formatCurrency, fetchOpenGraphData } from '../utils/helpers';
 
 type ItemEditModalProps = {
   item: RegistryItem;
@@ -20,6 +20,8 @@ const ItemEditModal = ({ item, onSave, onClose }: ItemEditModalProps) => {
     external_link: item.external_link,
     category: item.category,
   });
+  const [isFetchingOG, setIsFetchingOG] = useState(false);
+  const [ogError, setOgError] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,6 +31,129 @@ const ItemEditModal = ({ item, onSave, onClose }: ItemEditModalProps) => {
     });
     onClose();
   };
+
+  const handleFetchOpenGraph = async () => {
+    if (!formData.external_link) {
+      setOgError('Please enter a URL first');
+      return;
+    }
+
+    // Validate URL format
+    try {
+      new URL(formData.external_link);
+    } catch {
+      setOgError('Please enter a valid URL');
+      return;
+    }
+
+    setIsFetchingOG(true);
+    setOgError(null);
+    console.log('[ItemEditModal] Starting fetch for:', formData.external_link);
+
+    try {
+      // Add a timeout wrapper to ensure we don't hang forever
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timed out after 25 seconds')), 25000);
+      });
+
+      const fetchPromise = fetchOpenGraphData(formData.external_link);
+      const ogData = await Promise.race([fetchPromise, timeoutPromise]) as Awaited<ReturnType<typeof fetchOpenGraphData>>;
+      
+      console.log('[ItemEditModal] Fetch successful, data:', ogData);
+      
+      // When user explicitly clicks "Auto-fill", overwrite fields with fetched data
+      setFormData(prev => ({
+        ...prev,
+        title: ogData.title || prev.title,
+        description: ogData.description || prev.description,
+        image_url: ogData.image || prev.image_url,
+        price_amount: ogData.price || prev.price_amount,
+      }));
+    } catch (error: any) {
+      console.error('[ItemEditModal] OpenGraph fetch error:', error);
+      const errorMessage = error.message || 'Failed to fetch product information';
+      setOgError(errorMessage);
+    } finally {
+      setIsFetchingOG(false);
+      console.log('[ItemEditModal] Fetch completed');
+    }
+  };
+
+  // Auto-fetch when URL is pasted and form is mostly empty
+  useEffect(() => {
+    let isMounted = true;
+    let timeoutId: NodeJS.Timeout | null = null;
+
+    const urlPattern = /^https?:\/\/.+/;
+    if (formData.external_link && urlPattern.test(formData.external_link)) {
+      // Only auto-fetch if title and image are empty (user hasn't filled them yet)
+      if (!formData.title && !formData.image_url) {
+        timeoutId = setTimeout(async () => {
+          if (!isMounted) return;
+          
+          const currentUrl = formData.external_link;
+          if (!currentUrl) {
+            setIsFetchingOG(false);
+            return;
+          }
+          
+          // Validate URL
+          try {
+            new URL(currentUrl);
+          } catch {
+            setIsFetchingOG(false);
+            return; // Invalid URL, don't fetch
+          }
+          
+          setIsFetchingOG(true);
+          setOgError(null);
+
+          try {
+            const ogData = await fetchOpenGraphData(currentUrl);
+            
+            if (!isMounted) return;
+            
+            // Only update if URL hasn't changed (user might have changed it while fetching)
+            setFormData(prev => {
+              if (prev.external_link !== currentUrl) {
+                return prev; // URL changed, don't update
+              }
+              return {
+                ...prev,
+                title: prev.title || ogData.title || prev.title,
+                description: prev.description || ogData.description || prev.description,
+                image_url: prev.image_url || ogData.image || prev.image_url,
+                price_amount: prev.price_amount || (ogData.price || 0),
+              };
+            });
+          } catch (error: any) {
+            if (!isMounted) return;
+            
+            // Only show error if URL hasn't changed
+            setFormData(prev => {
+              if (prev.external_link === currentUrl) {
+                setOgError(error.message || 'Failed to fetch product information');
+              }
+              return prev;
+            });
+          } finally {
+            if (isMounted) {
+              setIsFetchingOG(false);
+            }
+          }
+        }, 1500); // Wait 1.5 seconds after user stops typing
+      }
+    }
+
+    return () => {
+      isMounted = false;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      // Always reset loading state on cleanup
+      setIsFetchingOG(false);
+    };
+  }, [formData.external_link, formData.title, formData.image_url]);
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-md animate-fade-in">
@@ -156,13 +281,51 @@ const ItemEditModal = ({ item, onSave, onClose }: ItemEditModalProps) => {
             <label className="block text-body-sm font-medium text-neutral-900 mb-2.5">
               External Link (Optional)
             </label>
-            <input
-              type="url"
-              value={formData.external_link}
-              onChange={(e) => setFormData({ ...formData, external_link: e.target.value })}
-              className="input-field"
-              placeholder="https://amazon.com/..."
-            />
+            <div className="flex items-start space-x-2">
+              <input
+                type="url"
+                value={formData.external_link}
+                onChange={(e) => {
+                  setFormData({ ...formData, external_link: e.target.value });
+                  setOgError(null);
+                }}
+                className="input-field flex-1"
+                placeholder="https://amazon.com/..."
+              />
+              <button
+                type="button"
+                onClick={handleFetchOpenGraph}
+                disabled={!formData.external_link || isFetchingOG}
+                className="px-4 py-2.5 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 whitespace-nowrap"
+                title="Auto-fill from product page"
+              >
+                {isFetchingOG ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="hidden sm:inline">Loading...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    <span className="hidden sm:inline">Auto-fill</span>
+                  </>
+                )}
+              </button>
+            </div>
+            {ogError && (
+              <p className="mt-2 text-sm text-red-600">{ogError}</p>
+            )}
+            {formData.external_link && !ogError && !isFetchingOG && (
+              <p className="mt-2 text-xs text-neutral-500">
+                Paste a product URL and click "Auto-fill" to automatically populate product information
+              </p>
+            )}
+            {isFetchingOG && (
+              <p className="mt-2 text-xs text-neutral-600 flex items-center space-x-2">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                <span>Fetching product information...</span>
+              </p>
+            )}
           </div>
 
           <div className="flex items-center justify-end space-x-3 pt-6 border-t border-neutral-200">
