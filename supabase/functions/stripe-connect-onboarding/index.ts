@@ -161,12 +161,21 @@ serve(async (req) => {
         status: 200,
       }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating Stripe Connect account:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error name:', error.name);
+    
+    // Return more detailed error information
+    const errorMessage = error.message || 'Failed to create Stripe Connect account';
+    const errorDetails = {
+      error: errorMessage,
+      type: error.name || 'UnknownError',
+      details: process.env.DENO_ENV === 'development' ? error.stack : undefined,
+    };
+    
     return new Response(
-      JSON.stringify({
-        error: error.message || 'Failed to create Stripe Connect account',
-      }),
+      JSON.stringify(errorDetails),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,

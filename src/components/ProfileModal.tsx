@@ -213,6 +213,8 @@ const ProfileModal = ({ user, isOpen, onClose }: ProfileModalProps) => {
 
       // Call the Stripe Connect onboarding function
       console.log('Calling stripe-connect-onboarding function...');
+      console.log('Session token exists:', !!session.access_token);
+      
       const { data, error } = await supabase.functions.invoke('stripe-connect-onboarding', {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -220,22 +222,41 @@ const ProfileModal = ({ user, isOpen, onClose }: ProfileModalProps) => {
       });
 
       if (error) {
-        console.error('Error connecting Stripe - Full error:', error);
-        console.error('Error details:', JSON.stringify(error, null, 2));
+        console.error('Error connecting Stripe - Full error object:', error);
+        console.error('Error type:', typeof error);
+        console.error('Error keys:', Object.keys(error));
+        console.error('Error message:', error.message);
+        console.error('Error context:', error.context);
+        console.error('Error details (stringified):', JSON.stringify(error, null, 2));
         
+        // Try to get more details from the error
         const errorMessage = error.message || error.toString() || 'Failed to connect Stripe account. Please try again.';
+        const errorContext = error.context || {};
+        const fullError = errorContext?.message || errorMessage;
         
-        // Check for common error types
+        console.log('Full error message:', fullError);
+        
+        // Check if it's a deployment issue
         if (errorMessage.includes('Function not found') || 
             errorMessage.includes('404') || 
             errorMessage.includes('not found') ||
-            errorMessage.includes('Failed to send a request')) {
-          alert('The Stripe Connect function is not deployed yet.\n\nPlease:\n1. Go to your Supabase Dashboard\n2. Navigate to Edge Functions\n3. Create a new function named "stripe-connect-onboarding"\n4. Copy the code from supabase/functions/stripe-connect-onboarding/index.ts\n5. Deploy the function');
-        } else if (errorMessage.includes('Network') || errorMessage.includes('fetch')) {
-          alert('Network error. Please check your internet connection and try again.');
+            errorMessage.includes('Failed to send a request') ||
+            fullError.includes('Function not found') ||
+            fullError.includes('404')) {
+          alert('The function might not be deployed correctly.\n\nPlease check:\n1. Function name is exactly "stripe-connect-onboarding" (no spaces, exact match)\n2. Function is deployed in Supabase Dashboard\n3. Check function logs for errors\n4. Verify environment variables are set\n\nCheck browser console (F12) for more details.');
+        } else if (errorMessage.includes('Network') || errorMessage.includes('fetch') || errorMessage.includes('CORS')) {
+          alert('Network or CORS error. Check browser console for details.');
         } else {
-          alert(`Error: ${errorMessage}\n\nCheck the browser console for more details.`);
+          // Show the actual error from the function
+          alert(`Error: ${fullError}\n\nThis might be:\n- Missing environment variables (STRIPE_SECRET_KEY, etc.)\n- Function runtime error\n- Authentication issue\n\nCheck browser console (F12) and Supabase function logs for details.`);
         }
+        return;
+      }
+      
+      // Check if data contains an error (function might have returned an error response)
+      if (data && data.error) {
+        console.error('Function returned error:', data.error);
+        alert(`Function error: ${data.error}\n\nThis usually means:\n- Missing environment variables\n- Stripe API error\n- Database error\n\nCheck Supabase function logs for details.`);
         return;
       }
 
