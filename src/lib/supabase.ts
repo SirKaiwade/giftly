@@ -54,10 +54,19 @@ export type Registry = {
   description: string;
   guestbook_enabled: boolean;
   is_published: boolean;
-  // Typography settings - only font families
+  // Typography settings
   title_font_family?: string; // 'sans' | 'serif' | 'mono' | 'display' | 'handwriting'
   subtitle_font_family?: string; // 'sans' | 'serif' | 'mono' | 'display' | 'handwriting'
   body_font_family?: string; // 'sans' | 'serif' | 'mono' | 'display' | 'handwriting'
+  title_font_weight?: 'normal' | 'bold'; // Font weight for title
+  title_font_style?: 'normal' | 'italic'; // Font style for title
+  title_text_decoration?: 'none' | 'underline'; // Text decoration for title
+  subtitle_font_weight?: 'normal' | 'bold';
+  subtitle_font_style?: 'normal' | 'italic';
+  subtitle_text_decoration?: 'none' | 'underline';
+  body_font_weight?: 'normal' | 'bold';
+  body_font_style?: 'normal' | 'italic';
+  body_text_decoration?: 'none' | 'underline';
   created_at: string;
   updated_at: string;
 };
@@ -78,6 +87,9 @@ export type RegistryItem = {
   priority: number;
   is_fulfilled: boolean;
   created_at: string;
+  // Time donation specific fields
+  hours_needed?: number; // For time donation: number of hours needed
+  hourly_rate?: number; // For time donation: hourly rate in cents
 };
 
 export type Contribution = {

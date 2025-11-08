@@ -235,6 +235,7 @@ export const ITEM_TYPES: {
 ];
 
 export const CATEGORIES = [
+  'header',
   'honeymoon',
   'home',
   'baby',

@@ -31,6 +31,15 @@ type PublicRegistryProps = {
   titleFontFamily?: string; // Font family for titles
   subtitleFontFamily?: string; // Font family for subtitles
   bodyFontFamily?: string; // Font family for body text
+  titleFontWeight?: 'normal' | 'bold';
+  titleFontStyle?: 'normal' | 'italic';
+  titleTextDecoration?: 'none' | 'underline';
+  subtitleFontWeight?: 'normal' | 'bold';
+  subtitleFontStyle?: 'normal' | 'italic';
+  subtitleTextDecoration?: 'none' | 'underline';
+  bodyFontWeight?: 'normal' | 'bold';
+  bodyFontStyle?: 'normal' | 'italic';
+  bodyTextDecoration?: 'none' | 'underline';
   onUpdateRegistry?: (updates: Partial<Registry>) => void;
   onEditItem?: (item: RegistryItem) => void;
   onAddItem?: (category: string) => void;
@@ -56,6 +65,15 @@ const PublicRegistry = ({
   titleFontFamily = 'sans',
   subtitleFontFamily = 'sans',
   bodyFontFamily = 'sans',
+  titleFontWeight = 'normal',
+  titleFontStyle = 'normal',
+  titleTextDecoration = 'none',
+  subtitleFontWeight = 'normal',
+  subtitleFontStyle = 'normal',
+  subtitleTextDecoration = 'none',
+  bodyFontWeight = 'normal',
+  bodyFontStyle = 'normal',
+  bodyTextDecoration = 'none',
   onUpdateRegistry,
   onEditItem,
   onAddItem,
@@ -102,11 +120,38 @@ const PublicRegistry = ({
   };
 
   // Helper to get font style object
-  const getFontStyle = (fontType: 'title' | 'subtitle' | 'body') => ({
-    fontFamily: getFontFamily(fontType)
-  });
+  const getFontStyle = (fontType: 'title' | 'subtitle' | 'body') => {
+    let fontWeight: string;
+    let fontStyle: string;
+    let textDecoration: string;
+    
+    if (fontType === 'title') {
+      fontWeight = titleFontWeight || 'normal';
+      fontStyle = titleFontStyle || 'normal';
+      textDecoration = titleTextDecoration || 'none';
+    } else if (fontType === 'subtitle') {
+      fontWeight = subtitleFontWeight || 'normal';
+      fontStyle = subtitleFontStyle || 'normal';
+      textDecoration = subtitleTextDecoration || 'none';
+    } else {
+      fontWeight = bodyFontWeight || 'normal';
+      fontStyle = bodyFontStyle || 'normal';
+      textDecoration = bodyTextDecoration || 'none';
+    }
+    
+    return {
+      fontFamily: getFontFamily(fontType),
+      fontWeight,
+      fontStyle,
+      textDecoration,
+    };
+  };
 
-  const groupedItems = items.reduce((acc, item) => {
+  // Separate header items from regular items
+  const headerItems = items.filter(item => item.category === 'header');
+  const regularItems = items.filter(item => item.category !== 'header');
+
+  const groupedItems = regularItems.reduce((acc, item) => {
     // Skip hidden sections
     if (hiddenSections.has(item.category)) {
       return acc;
@@ -717,6 +762,98 @@ const PublicRegistry = ({
       )}
 
       <div className="max-w-6xl mx-auto px-6 lg:px-8 py-16">
+        {/* Header/Goal Items - Display prominently at top */}
+        {headerItems.length > 0 && (
+          <div className="mb-12">
+            {headerItems.map((item) => (
+              <div
+                key={item.id}
+                className={`rounded-2xl border-2 p-6 transition-all duration-300 ${
+                  isPreview ? 'hover:shadow-lg' : ''
+                }`}
+                style={{
+                  backgroundColor: themeColors.surface,
+                  borderColor: themeColors.border,
+                }}
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex-1">
+                    <h3
+                      className="text-heading-2 font-semibold mb-1"
+                      style={{ color: themeColors.text }}
+                    >
+                      {item.title}
+                    </h3>
+                    {item.description && (
+                      <p
+                        className="text-body-sm"
+                        style={{ color: themeColors.textLight }}
+                      >
+                        {item.description}
+                      </p>
+                    )}
+                  </div>
+                  {!isPreview && (
+                    <button
+                      onClick={() => setSelectedItem(item)}
+                      className="px-6 py-2.5 rounded-lg font-medium transition-all duration-200 hover:scale-105"
+                      style={{
+                        backgroundColor: themeColors.accent,
+                        color: themeColors.background,
+                      }}
+                    >
+                      Contribute
+                    </button>
+                  )}
+                  {isPreview && onEditItem && (
+                    <button
+                      onClick={() => onEditItem(item)}
+                      className="px-6 py-2.5 rounded-lg font-medium transition-all duration-200 hover:scale-105 opacity-50 hover:opacity-100"
+                      style={{
+                        backgroundColor: themeColors.accent,
+                        color: themeColors.background,
+                      }}
+                    >
+                      Contribute
+                    </button>
+                  )}
+                </div>
+
+                {(item.item_type === 'cash' || item.item_type === 'partial' || item.item_type === 'charity') && (
+                  <div className="mt-4">
+                    <div className="flex items-baseline justify-between mb-3">
+                      <span
+                        className="text-heading-3 font-bold"
+                        style={{ color: themeColors.text }}
+                      >
+                        {formatCurrency(item.current_amount)}
+                      </span>
+                      <span
+                        className="text-body-sm"
+                        style={{ color: themeColors.textMuted }}
+                      >
+                        of {formatCurrency(item.price_amount)}
+                      </span>
+                    </div>
+                    <div
+                      className="w-full h-2 rounded-full overflow-hidden"
+                      style={{ backgroundColor: themeColors.borderLight }}
+                    >
+                      <div
+                        className="h-full rounded-full transition-all duration-700 ease-out"
+                        style={{
+                          width: `${calculateProgress(item.current_amount, item.price_amount)}%`,
+                          backgroundColor: themeColors.accent,
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
         {Object.keys(groupedItems).length > 0 ? (
           Object.entries(groupedItems).map(([category, categoryItems]) => (
           <section 
@@ -922,6 +1059,33 @@ const PublicRegistry = ({
                             }}
                           />
                         </div>
+                      </div>
+                    ) : item.item_type === 'service' && (item as any).hours_needed ? (
+                      <div className="pt-1">
+                        <div className="flex items-baseline justify-between">
+                          <span 
+                            className="text-body font-semibold"
+                            style={{ color: themeColors.text }}
+                          >
+                            {(item as any).hours_needed} {((item as any).hours_needed || 0) === 1 ? 'hour' : 'hours'}
+                          </span>
+                          {(item as any).hourly_rate > 0 && (
+                            <span 
+                              className="text-body-sm"
+                              style={{ color: themeColors.textMuted }}
+                            >
+                              {formatCurrency((item as any).hourly_rate)}/hr
+                            </span>
+                          )}
+                        </div>
+                        {formatCurrency(item.price_amount) !== '$0.00' && (
+                          <div 
+                            className="text-body-sm mt-1"
+                            style={{ color: themeColors.textMuted }}
+                          >
+                            Total: {formatCurrency(item.price_amount)}
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="pt-1">

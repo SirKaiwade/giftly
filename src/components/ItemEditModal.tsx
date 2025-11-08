@@ -33,6 +33,8 @@ const ItemEditModal = ({ item, onSave, onClose }: ItemEditModalProps) => {
     category: item.category,
     image_position: item.image_position || 'center',
     image_scale: item.image_scale || 1,
+    hours_needed: (item as any).hours_needed || 0,
+    hourly_rate: ((item as any).hourly_rate || 0) / 100,
   });
   const [isFetchingOG, setIsFetchingOG] = useState(false);
   const [ogError, setOgError] = useState<string | null>(null);
@@ -50,12 +52,25 @@ const ItemEditModal = ({ item, onSave, onClose }: ItemEditModalProps) => {
     e.preventDefault();
     // Convert position to CSS format
     const positionStr = `${imagePosition.x}% ${imagePosition.y}%`;
-    onSave({
+    const saveData: any = {
       ...formData,
       price_amount: Math.round(formData.price_amount * 100),
       image_position: positionStr,
       image_scale: imageScale,
-    });
+    };
+    
+    // For time donation, calculate price from hours and rate if provided
+    if (formData.item_type === 'service' && formData.hours_needed > 0 && formData.hourly_rate > 0) {
+      saveData.price_amount = Math.round(formData.hours_needed * formData.hourly_rate * 100);
+      saveData.hours_needed = formData.hours_needed;
+      saveData.hourly_rate = Math.round(formData.hourly_rate * 100);
+    } else if (formData.item_type === 'service') {
+      // Keep hours and rate if set
+      if (formData.hours_needed > 0) saveData.hours_needed = formData.hours_needed;
+      if (formData.hourly_rate > 0) saveData.hourly_rate = Math.round(formData.hourly_rate * 100);
+    }
+    
+    onSave(saveData);
     onClose();
   };
 
@@ -285,8 +300,8 @@ const ItemEditModal = ({ item, onSave, onClose }: ItemEditModalProps) => {
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-md animate-fade-in">
-      <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl animate-scale-in scrollbar-thin">
-        <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-neutral-200 px-8 py-6 flex items-center justify-between rounded-t-3xl z-10">
+      <div className="bg-white rounded-3xl max-w-5xl w-full max-h-[95vh] overflow-hidden shadow-2xl animate-scale-in flex flex-col">
+        <div className="border-b border-neutral-200 px-8 py-4 flex items-center justify-between rounded-t-3xl flex-shrink-0">
           <h2 className="text-heading-2 font-medium text-neutral-900">Edit Item</h2>
           <button
             onClick={onClose}
@@ -296,9 +311,9 @@ const ItemEditModal = ({ item, onSave, onClose }: ItemEditModalProps) => {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-8 space-y-6">
+        <form onSubmit={handleSubmit} className="p-6 space-y-3 flex-1 min-h-0 overflow-y-auto">
           <div>
-            <label className="block text-body-sm font-medium text-neutral-900 mb-2.5">
+            <label className="block text-body-sm font-medium text-neutral-900 mb-1.5">
               Title *
             </label>
             <input
@@ -312,23 +327,203 @@ const ItemEditModal = ({ item, onSave, onClose }: ItemEditModalProps) => {
           </div>
 
           <div>
-            <label className="block text-body-sm font-medium text-neutral-900 mb-2.5">
+            <label className="block text-body-sm font-medium text-neutral-900 mb-1.5">
               Description
             </label>
             <textarea
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              rows={3}
+              rows={2}
               className="input-field"
               placeholder="Describe this item..."
             />
           </div>
 
+          {/* Item Type Selector */}
           <div>
-            <label className="block text-body-sm font-medium text-neutral-900 mb-2.5">
+            <label className="block text-body-sm font-medium text-neutral-900 mb-1.5">
+              Item Type *
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {ITEM_TYPES.map((type) => {
+                const isSelected = formData.item_type === type.value;
+                const IconComponent = 
+                  type.icon === 'DollarSign' ? DollarSign :
+                  type.icon === 'Package' ? Package :
+                  type.icon === 'Gift' ? Gift :
+                  type.icon === 'Sparkles' ? Sparkles :
+                  type.icon === 'Clock' ? Clock :
+                  Heart;
+                
+                return (
+                  <button
+                    key={type.value}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, item_type: type.value as any })}
+                    className={`p-3 rounded-lg border-2 transition-all duration-200 text-left hover:shadow-md flex flex-col h-full min-h-[80px] ${
+                      isSelected
+                        ? 'border-neutral-900 bg-neutral-900 text-white shadow-lg'
+                        : 'border-neutral-200 bg-white hover:border-neutral-300'
+                    }`}
+                  >
+                    <div className="flex items-start space-x-3">
+                      <div className={`p-2 rounded-lg flex-shrink-0 ${isSelected ? 'bg-white/20' : 'bg-neutral-100'}`}>
+                        <IconComponent className={`w-5 h-5 ${isSelected ? 'text-white' : 'text-neutral-700'}`} strokeWidth={1.5} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className={`font-semibold text-sm mb-0.5 ${isSelected ? 'text-white' : 'text-neutral-900'}`}>
+                          {type.label}
+                        </div>
+                        <div className={`text-xs leading-snug ${isSelected ? 'text-white/80' : 'text-neutral-600'}`}>
+                          {type.description}
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Category and Price in a row */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-body-sm font-medium text-neutral-900 mb-1.5">
+                Category
+              </label>
+              <select
+                value={formData.category}
+                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                className="input-field"
+              >
+                {CATEGORIES.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Conditional Price/Goal Fields */}
+            {formData.item_type === 'service' ? (
+              <div>
+                <label className="block text-body-sm font-medium text-neutral-900 mb-1.5">
+                  Hours Needed
+                </label>
+                <input
+                  type="number"
+                  value={formData.hours_needed}
+                  onChange={(e) => {
+                    const hours = parseFloat(e.target.value) || 0;
+                    setFormData({ 
+                      ...formData, 
+                      hours_needed: hours,
+                      price_amount: hours > 0 && formData.hourly_rate > 0 ? hours * formData.hourly_rate : formData.price_amount
+                    });
+                  }}
+                  min="0"
+                  step="0.5"
+                  className="input-field"
+                  placeholder="e.g., 10"
+                />
+              </div>
+            ) : (
+              <div>
+                <label className="block text-body-sm font-medium text-neutral-900 mb-1.5">
+                  {formData.item_type === 'cash' ? 'Goal Amount' : formData.item_type === 'partial' ? 'Total Cost' : formData.item_type === 'charity' ? 'Target Amount' : 'Price'} ($)
+                </label>
+                <input
+                  type="number"
+                  value={formData.price_amount}
+                  onChange={(e) => setFormData({ ...formData, price_amount: parseFloat(e.target.value) || 0 })}
+                  min="0"
+                  step="0.01"
+                  className="input-field"
+                  placeholder="0.00"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Time Donation Rate */}
+          {formData.item_type === 'service' && (
+            <div>
+              <label className="block text-body-sm font-medium text-neutral-900 mb-1.5">
+                Hourly Rate ($)
+              </label>
+              <input
+                type="number"
+                value={formData.hourly_rate}
+                onChange={(e) => {
+                  const rate = parseFloat(e.target.value) || 0;
+                  setFormData({ 
+                    ...formData, 
+                    hourly_rate: rate,
+                    price_amount: formData.hours_needed > 0 && rate > 0 ? formData.hours_needed * rate : formData.price_amount
+                  });
+                }}
+                min="0"
+                step="0.01"
+                className="input-field"
+                placeholder="e.g., 25.00"
+              />
+              {formData.hours_needed > 0 && formData.hourly_rate > 0 && (
+                <p className="mt-1 text-xs text-neutral-600">
+                  Total: {formatCurrency(Math.round(formData.hours_needed * formData.hourly_rate * 100))}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* External Link */}
+          <div>
+            <label className="block text-body-sm font-medium text-neutral-900 mb-1.5">
+              {(formData.item_type === 'product' || formData.item_type === 'partial' || formData.item_type === 'experience') ? 'Product Link' : 'Link'} (Optional)
+            </label>
+            <div className="flex items-start space-x-2">
+              <input
+                type="url"
+                value={formData.external_link}
+                onChange={(e) => {
+                  setFormData({ ...formData, external_link: e.target.value });
+                  setOgError(null);
+                }}
+                className="input-field flex-1"
+                placeholder="https://..."
+              />
+              {(formData.item_type === 'product' || formData.item_type === 'partial' || formData.item_type === 'experience') && (
+                <button
+                  type="button"
+                  onClick={handleFetchOpenGraph}
+                  disabled={!formData.external_link || isFetchingOG}
+                  className="px-4 py-2.5 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 whitespace-nowrap"
+                  title="Auto-fill from product page"
+                >
+                  {isFetchingOG ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="hidden sm:inline">Loading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      <span className="hidden sm:inline">Auto-fill</span>
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+            {ogError && (
+              <p className="mt-1 text-xs text-red-600">{ogError}</p>
+            )}
+          </div>
+
+          {/* Image */}
+          <div>
+            <label className="block text-body-sm font-medium text-neutral-900 mb-1.5">
               Image
             </label>
-            <div className="space-y-2">
+            <div className="flex items-start space-x-2">
               <input
                 type="url"
                 value={formData.image_url}
@@ -340,59 +535,50 @@ const ItemEditModal = ({ item, onSave, onClose }: ItemEditModalProps) => {
                     setImageScale(1);
                   }
                 }}
-                className="input-field"
-                placeholder="Image URL or upload a file..."
+                className="input-field flex-1"
+                placeholder="Image URL..."
               />
-              <div className="flex items-center space-x-2">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleImageUpload}
-                />
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleImageUpload}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploadingImage}
+                className="w-12 h-12 border border-neutral-300 rounded-lg hover:bg-neutral-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center flex-shrink-0"
+                title="Upload image"
+              >
+                {isUploadingImage ? (
+                  <Loader2 className="w-5 h-5 animate-spin text-neutral-600" />
+                ) : (
+                  <Upload className="w-5 h-5 text-neutral-600" />
+                )}
+              </button>
+              {formData.image_url && (
                 <button
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isUploadingImage}
-                  className="px-4 py-2 border border-neutral-300 rounded-lg font-medium hover:bg-neutral-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                  onClick={() => {
+                    setFormData({ ...formData, image_url: '' });
+                    if (fileInputRef.current) {
+                      fileInputRef.current.value = '';
+                    }
+                    setImagePosition({ x: 50, y: 50 });
+                    setImageScale(1);
+                  }}
+                  className="w-12 h-12 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 rounded-lg transition-colors flex items-center justify-center flex-shrink-0"
+                  title="Clear image"
                 >
-                  {isUploadingImage ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Uploading...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="w-4 h-4" />
-                      <span>Upload Image</span>
-                    </>
-                  )}
+                  <X className="w-5 h-5" />
                 </button>
-                {formData.image_url && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFormData({ ...formData, image_url: '' });
-                      if (fileInputRef.current) {
-                        fileInputRef.current.value = '';
-                      }
-                      setImagePosition({ x: 50, y: 50 });
-                      setImageScale(1);
-                    }}
-                    className="px-4 py-2 text-sm text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 rounded-lg transition-colors"
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-              <p className="text-xs text-neutral-500">
-                Image will be auto-filled from URL if available, or upload your own (JPG, PNG, GIF, max 5MB)
-              </p>
+              )}
             </div>
             {formData.image_url && (
-              <div className="mt-4 space-y-3">
-                <div className="relative w-40 aspect-[4/5] rounded-2xl overflow-hidden bg-neutral-100 border-2 border-neutral-200 shadow-soft">
+              <div className="mt-4 space-y-2">
+                <div className="relative w-40 aspect-[4/5] rounded-xl overflow-hidden bg-neutral-100 border-2 border-neutral-200">
                   <img
                     ref={imageRef}
                     src={formData.image_url}
@@ -419,198 +605,7 @@ const ItemEditModal = ({ item, onSave, onClose }: ItemEditModalProps) => {
             )}
           </div>
 
-          {/* Item Type Selector */}
-          <div>
-            <label className="block text-body-sm font-medium text-neutral-900 mb-3">
-              Item Type *
-            </label>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {ITEM_TYPES.map((type) => {
-                const isSelected = formData.item_type === type.value;
-                const IconComponent = 
-                  type.icon === 'DollarSign' ? DollarSign :
-                  type.icon === 'Package' ? Package :
-                  type.icon === 'Gift' ? Gift :
-                  type.icon === 'Sparkles' ? Sparkles :
-                  type.icon === 'Clock' ? Clock :
-                  Heart;
-                
-                return (
-                  <button
-                    key={type.value}
-                    type="button"
-                    onClick={() => setFormData({ ...formData, item_type: type.value as any })}
-                    className={`p-4 rounded-xl border-2 transition-all duration-200 text-left hover:shadow-md flex flex-col h-full min-h-[100px] ${
-                      isSelected
-                        ? 'border-neutral-900 bg-neutral-900 text-white shadow-lg'
-                        : 'border-neutral-200 bg-white hover:border-neutral-300'
-                    }`}
-                  >
-                    <div className="flex items-start space-x-3">
-                      <div className={`p-2 rounded-lg flex-shrink-0 ${isSelected ? 'bg-white/20' : 'bg-neutral-100'}`}>
-                        <IconComponent className={`w-5 h-5 ${isSelected ? 'text-white' : 'text-neutral-700'}`} strokeWidth={1.5} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className={`font-semibold text-sm mb-0.5 ${isSelected ? 'text-white' : 'text-neutral-900'}`}>
-                          {type.label}
-                        </div>
-                        <div className={`text-xs leading-snug ${isSelected ? 'text-white/80' : 'text-neutral-600'}`}>
-                          {type.description}
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Category */}
-          <div>
-            <label className="block text-body-sm font-medium text-neutral-900 mb-2.5">
-              Category
-            </label>
-            <select
-              value={formData.category}
-              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-              className="input-field"
-            >
-              {CATEGORIES.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat.charAt(0).toUpperCase() + cat.slice(1)}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Conditional Price/Goal Fields */}
-          {(formData.item_type === 'cash' || formData.item_type === 'partial' || formData.item_type === 'charity') ? (
-            <div>
-              <label className="block text-body-sm font-medium text-neutral-900 mb-2.5">
-                {formData.item_type === 'cash' ? 'Goal Amount' : formData.item_type === 'partial' ? 'Total Cost' : 'Target Amount'} ($)
-              </label>
-              <input
-                type="number"
-                value={formData.price_amount}
-                onChange={(e) => setFormData({ ...formData, price_amount: parseFloat(e.target.value) || 0 })}
-                min="0"
-                step="0.01"
-                className="input-field"
-                placeholder="0.00"
-              />
-              {formData.price_amount > 0 && (
-                <p className="mt-2 text-body-sm text-neutral-600 font-medium">
-                  {formatCurrency(Math.round(formData.price_amount * 100))}
-                  {formData.item_type === 'partial' && (
-                    <span className="text-neutral-500 text-xs ml-2">People can contribute any amount</span>
-                  )}
-                </p>
-              )}
-              {formData.item_type === 'partial' && (
-                <p className="mt-2 text-xs text-neutral-500">
-                  💡 Perfect for big items like furniture, appliances, or vehicles where multiple people can pitch in
-                </p>
-              )}
-            </div>
-          ) : (
-            <div>
-              <label className="block text-body-sm font-medium text-neutral-900 mb-2.5">
-                Price ($)
-              </label>
-              <input
-                type="number"
-                value={formData.price_amount}
-                onChange={(e) => setFormData({ ...formData, price_amount: parseFloat(e.target.value) || 0 })}
-                min="0"
-                step="0.01"
-                className="input-field"
-                placeholder="0.00"
-              />
-              {formData.price_amount > 0 && (
-                <p className="mt-2 text-body-sm text-neutral-600 font-medium">
-                  {formatCurrency(Math.round(formData.price_amount * 100))}
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* External Link - More prominent for products */}
-          {(formData.item_type === 'product' || formData.item_type === 'partial' || formData.item_type === 'experience') ? (
-            <div>
-              <label className="block text-body-sm font-medium text-neutral-900 mb-2.5">
-                Product Link {formData.item_type === 'product' ? '*' : '(Optional)'}
-              </label>
-              <div className="flex items-start space-x-2">
-                <input
-                  type="url"
-                  value={formData.external_link}
-                  onChange={(e) => {
-                    setFormData({ ...formData, external_link: e.target.value });
-                    setOgError(null);
-                  }}
-                  className="input-field flex-1"
-                  placeholder="https://amazon.com/..."
-                  required={formData.item_type === 'product'}
-                />
-                <button
-                  type="button"
-                  onClick={handleFetchOpenGraph}
-                  disabled={!formData.external_link || isFetchingOG}
-                  className="px-4 py-2.5 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 whitespace-nowrap"
-                  title="Auto-fill from product page"
-                >
-                  {isFetchingOG ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span className="hidden sm:inline">Loading...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4" />
-                      <span className="hidden sm:inline">Auto-fill</span>
-                    </>
-                  )}
-                </button>
-              </div>
-              {ogError && (
-                <p className="mt-2 text-sm text-red-600">{ogError}</p>
-              )}
-              {formData.external_link && !ogError && !isFetchingOG && (
-                <p className="mt-2 text-xs text-neutral-500">
-                  Paste a product URL and click "Auto-fill" to automatically populate product information
-                </p>
-              )}
-              {isFetchingOG && (
-                <p className="mt-2 text-xs text-neutral-600 flex items-center space-x-2">
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  <span>Fetching product information...</span>
-                </p>
-              )}
-            </div>
-          ) : (
-            <div>
-              <label className="block text-body-sm font-medium text-neutral-900 mb-2.5">
-                Link (Optional)
-              </label>
-              <input
-                type="url"
-                value={formData.external_link}
-                onChange={(e) => {
-                  setFormData({ ...formData, external_link: e.target.value });
-                  setOgError(null);
-                }}
-                className="input-field"
-                placeholder="https://..."
-              />
-              {formData.item_type === 'cash' && (
-                <p className="mt-2 text-xs text-neutral-500">
-                  Optional: Add a link to your travel booking, savings account, or related page
-                </p>
-              )}
-            </div>
-          )}
-
-          <div className="flex items-center justify-end space-x-3 pt-6 border-t border-neutral-200">
+          <div className="flex items-center justify-end space-x-3 pt-4 mt-4 border-t border-neutral-200 flex-shrink-0">
             <button
               type="button"
               onClick={onClose}

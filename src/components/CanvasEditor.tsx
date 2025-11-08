@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useRegistry } from '../contexts/RegistryContext';
-import { GripVertical, Plus, Edit2, Trash2, Layout, Grid, Columns, Layers, ChevronDown, ChevronRight, X, FolderPlus, Settings, Calendar, Type, Image as ImageIcon, AlignLeft, BarChart3, Palette, Pencil, Share2, Sliders, Eye, EyeOff } from 'lucide-react';
+import { GripVertical, Plus, Edit2, Trash2, Layout, Grid, Columns, Layers, ChevronDown, ChevronRight, X, FolderPlus, Settings, Calendar, Type, Image as ImageIcon, AlignLeft, BarChart3, Palette, Pencil, Share2, Sliders, Eye, EyeOff, Bold, Italic, Underline } from 'lucide-react';
 import { RegistryItem, Contribution, supabase } from '../lib/supabase';
 import PublicRegistry from './PublicRegistry';
 import ItemEditModal from './ItemEditModal';
@@ -35,6 +35,8 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
   const { currentRegistry, currentItems, updateItems, addItem, updateItem, removeItem, updateRegistry } = useRegistry();
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<{ category: string; index: number } | null>(null);
+  const [draggedSection, setDraggedSection] = useState<string | null>(null);
+  const [dragOverSectionIndex, setDragOverSectionIndex] = useState<number | null>(null);
   const [editingItem, setEditingItem] = useState<RegistryItem | null>(null);
   const [selectedLayout, setSelectedLayout] = useState<LayoutPreset>('grid');
   const [fullScreenPreview, setFullScreenPreview] = useState(false);
@@ -82,6 +84,15 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
   const [titleFontFamily, setTitleFontFamily] = useState('sans');
   const [subtitleFontFamily, setSubtitleFontFamily] = useState('sans');
   const [bodyFontFamily, setBodyFontFamily] = useState('sans');
+  const [titleFontWeight, setTitleFontWeight] = useState<'normal' | 'bold'>('normal');
+  const [titleFontStyle, setTitleFontStyle] = useState<'normal' | 'italic'>('normal');
+  const [titleTextDecoration, setTitleTextDecoration] = useState<'none' | 'underline'>('none');
+  const [subtitleFontWeight, setSubtitleFontWeight] = useState<'normal' | 'bold'>('normal');
+  const [subtitleFontStyle, setSubtitleFontStyle] = useState<'normal' | 'italic'>('normal');
+  const [subtitleTextDecoration, setSubtitleTextDecoration] = useState<'none' | 'underline'>('none');
+  const [bodyFontWeight, setBodyFontWeight] = useState<'normal' | 'bold'>('normal');
+  const [bodyFontStyle, setBodyFontStyle] = useState<'normal' | 'italic'>('normal');
+  const [bodyTextDecoration, setBodyTextDecoration] = useState<'none' | 'underline'>('none');
   const [openFontDropdown, setOpenFontDropdown] = useState<'title' | 'subtitle' | 'body' | null>(null);
 
   // Function to save registry with a given name
@@ -357,6 +368,15 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
             setTitleFontFamily((data as any).title_font_family || 'sans');
             setSubtitleFontFamily((data as any).subtitle_font_family || 'sans');
             setBodyFontFamily((data as any).body_font_family || 'sans');
+            setTitleFontWeight((data as any).title_font_weight || 'normal');
+            setTitleFontStyle((data as any).title_font_style || 'normal');
+            setTitleTextDecoration((data as any).title_text_decoration || 'none');
+            setSubtitleFontWeight((data as any).subtitle_font_weight || 'normal');
+            setSubtitleFontStyle((data as any).subtitle_font_style || 'normal');
+            setSubtitleTextDecoration((data as any).subtitle_text_decoration || 'none');
+            setBodyFontWeight((data as any).body_font_weight || 'normal');
+            setBodyFontStyle((data as any).body_font_style || 'normal');
+            setBodyTextDecoration((data as any).body_text_decoration || 'none');
             
             // Load custom theme colors if they exist
             if (data.theme === 'custom' && (data as any).custom_theme_colors) {
@@ -679,6 +699,65 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
     updateItems(reorderedItems);
     setDraggedItem(null);
     setDragOverIndex(null);
+  };
+
+  // Section drag and drop handlers
+  const handleSectionDragStart = (e: React.DragEvent, category: string) => {
+    setDraggedSection(category);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleSectionDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    // Determine if we're in the top or bottom half of the section
+    const rect = e.currentTarget.getBoundingClientRect();
+    const midpoint = rect.top + rect.height / 2;
+    const dropIndex = e.clientY < midpoint ? index : index + 1;
+    setDragOverSectionIndex(dropIndex);
+  };
+
+  const handleSectionDrop = (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault();
+    if (!draggedSection || draggedSection === categories[targetIndex]) {
+      setDraggedSection(null);
+      setDragOverSectionIndex(null);
+      return;
+    }
+
+    // Get all items from the dragged section
+    const draggedSectionItems = groupedItems[draggedSection] || [];
+    
+    // Reorder categories
+    const newCategories = [...categories];
+    const draggedIndex = newCategories.indexOf(draggedSection);
+    newCategories.splice(draggedIndex, 1);
+    newCategories.splice(targetIndex, 0, draggedSection);
+
+    // Reorder all items based on new category order
+    const reorderedItems: RegistryItem[] = [];
+    let priority = 0;
+    
+    newCategories.forEach(category => {
+      const categoryItems = category === draggedSection 
+        ? draggedSectionItems 
+        : (groupedItems[category] || []);
+      
+      categoryItems.forEach(item => {
+        reorderedItems.push({ ...item, priority: priority++ });
+      });
+    });
+
+    // Also update items that weren't in any category
+    currentItems.forEach(item => {
+      if (!newCategories.includes(item.category)) {
+        reorderedItems.push({ ...item, priority: priority++ });
+      }
+    });
+
+    updateItems(reorderedItems);
+    setDraggedSection(null);
+    setDragOverSectionIndex(null);
   };
 
   const handleAddItem = (category?: string) => {
@@ -1170,111 +1249,167 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
               {/* Sections List */}
               <div className="space-y-2">
               {categories.length > 0 ? (
-                categories.map((category) => {
+                categories.map((category, sectionIndex) => {
                   const items = groupedItems[category] || [];
                   const isExpanded = expandedSections[category] !== false;
                   const isSelected = selectedSection === category;
+                  const isDragged = draggedSection === category;
+                  const draggedIndex = draggedSection ? categories.indexOf(draggedSection) : -1;
+                  // Show drop line before this section if dragging over it and it's not the dragged section
+                  const showDropLineBefore = dragOverSectionIndex === sectionIndex && draggedSection && draggedSection !== category && draggedIndex < sectionIndex;
+                  // Show drop line after this section if dragging over the next position
+                  const showDropLineAfter = dragOverSectionIndex === sectionIndex + 1 && draggedSection && draggedSection !== category && draggedIndex > sectionIndex;
                   
                   return (
-                    <div
-                      key={category}
-                      className={`group border rounded-lg overflow-hidden transition-all ${
-                        isSelected ? 'border-neutral-900 shadow-sm' : 'border-neutral-200 hover:border-neutral-300'
-                      }`}
-                    >
-                      {/* Section Header */}
-                      <div
-                        className={`px-3 py-2.5 flex items-center justify-between cursor-pointer transition-colors ${
-                          isSelected ? 'bg-neutral-100' : 'bg-neutral-50 hover:bg-neutral-100'
-                        }`}
-                        onClick={() => {
-                          setSelectedSection(category);
-                          if (!isExpanded) {
-                            toggleSection(category);
-                          }
-                        }}
-                      >
-                        <div className="flex items-center space-x-2 flex-1 min-w-0">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleSection(category);
-                            }}
-                            className="p-0.5 hover:bg-neutral-200 rounded transition-colors"
-                          >
-                            {isExpanded ? (
-                              <ChevronDown className="w-3.5 h-3.5 text-neutral-500 flex-shrink-0" strokeWidth={1.5} />
-                            ) : (
-                              <ChevronRight className="w-3.5 h-3.5 text-neutral-500 flex-shrink-0" strokeWidth={1.5} />
-                            )}
-                          </button>
-                          <span 
-                            className="text-sm font-medium text-neutral-900 truncate cursor-pointer"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedSection(category);
-                            }}
-                          >
-                            {CATEGORY_LABELS[category] || category.charAt(0).toUpperCase() + category.slice(1)}
-                          </span>
-                          <span className="text-xs text-neutral-500">({items.length})</span>
-                        </div>
-                        <div className="flex items-center space-x-0.5">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleAddItem(category);
-                            }}
-                            className="p-1 hover:bg-neutral-200 rounded transition-colors opacity-0 group-hover:opacity-100"
-                            title="Add item"
-                          >
-                            <Plus className="w-3.5 h-3.5 text-neutral-600" strokeWidth={1.5} />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleRemoveSection(category);
-                            }}
-                            className="p-1 hover:bg-red-50 rounded transition-colors opacity-60 group-hover:opacity-100"
-                            title="Remove section"
-                          >
-                            <X className="w-3.5 h-3.5 text-neutral-500 hover:text-red-600" strokeWidth={1.5} />
-                          </button>
-                        </div>
-                      </div>
+                    <div key={category}>
+                      {/* Drop indicator line - before section */}
+                      {showDropLineBefore && (
+                        <div className="h-0.5 bg-neutral-900 rounded-full mb-2 mx-2 animate-pulse" />
+                      )}
                       
-                      {/* Section Items */}
-                      {isExpanded && items.length > 0 && (
-                        <div className="p-2 space-y-1.5 bg-white">
-                          {items.map((item) => (
-                            <div
-                              key={item.id}
-                              draggable
-                              onDragStart={(e) => handleDragStart(e, item.id)}
-                              className="group bg-neutral-50 border border-neutral-200 rounded-md p-2 cursor-move hover:border-neutral-400 hover:shadow-sm transition-all"
+                      <div
+                        draggable
+                        onDragStart={(e) => handleSectionDragStart(e, category)}
+                        onDragOver={(e) => handleSectionDragOver(e, sectionIndex)}
+                        onDrop={(e) => handleSectionDrop(e, sectionIndex)}
+                        onDragEnd={() => {
+                          setDraggedSection(null);
+                          setDragOverSectionIndex(null);
+                        }}
+                        className={`transition-all ${isDragged ? 'opacity-50' : ''}`}
+                      >
+                        {/* Section Header - Cleaner style matching customization tab */}
+                        <div
+                          className={`flex items-center justify-between p-2.5 border rounded-md bg-white hover:border-neutral-300 transition-colors group ${
+                            isSelected ? 'border-neutral-900 shadow-sm' : 'border-neutral-200'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-2 flex-1 min-w-0">
+                            <GripVertical 
+                              className="w-4 h-4 text-neutral-400 flex-shrink-0 cursor-move hover:text-neutral-600 transition-colors"
+                              strokeWidth={1.5}
+                              onMouseDown={(e) => e.stopPropagation()}
+                            />
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleSection(category);
+                              }}
+                              className="p-0.5 hover:bg-neutral-100 rounded transition-colors flex-shrink-0"
                             >
-                              <div className="flex items-start space-x-2">
-                                <GripVertical className="w-3.5 h-3.5 text-neutral-400 mt-0.5 flex-shrink-0 group-hover:text-neutral-600 transition-colors" strokeWidth={1.5} />
-                                <div className="flex-1 min-w-0">
-                                  <div className="text-xs font-medium text-neutral-900 truncate">{item.title}</div>
-                                  <div className="text-[10px] text-neutral-500 mt-0.5">
-                                    {formatCurrency(item.price_amount)}
+                              {isExpanded ? (
+                                <ChevronDown className="w-3.5 h-3.5 text-neutral-500" strokeWidth={1.5} />
+                              ) : (
+                                <ChevronRight className="w-3.5 h-3.5 text-neutral-500" strokeWidth={1.5} />
+                              )}
+                            </button>
+                            <span 
+                              className="text-xs font-medium text-neutral-900 truncate cursor-pointer flex-1"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedSection(category);
+                                if (!isExpanded) {
+                                  toggleSection(category);
+                                }
+                              }}
+                            >
+                              {CATEGORY_LABELS[category] || category.charAt(0).toUpperCase() + category.slice(1)}
+                            </span>
+                            <span className="text-[10px] text-neutral-500 flex-shrink-0">({items.length})</span>
+                          </div>
+                          <div className="flex items-center space-x-1 ml-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleAddItem(category);
+                              }}
+                              className="p-1 hover:bg-neutral-100 rounded transition-colors opacity-0 group-hover:opacity-100"
+                              title="Add item"
+                            >
+                              <Plus className="w-3.5 h-3.5 text-neutral-600" strokeWidth={1.5} />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveSection(category);
+                              }}
+                              className="p-1 hover:bg-red-50 rounded transition-colors opacity-0 group-hover:opacity-100"
+                              title="Remove section"
+                            >
+                              <X className="w-3.5 h-3.5 text-neutral-500 hover:text-red-600" strokeWidth={1.5} />
+                            </button>
+                          </div>
+                        </div>
+                      
+                        {/* Section Items */}
+                        {isExpanded && items.length > 0 && (
+                          <div className="mt-2 space-y-1.5 pl-2">
+                            {items.map((item, itemIndex) => {
+                              const isDragOver = dragOverIndex?.category === category && dragOverIndex?.index === itemIndex;
+                              const isItemDragged = draggedItem === item.id;
+                              
+                              return (
+                                <div key={item.id}>
+                                  {/* Drop indicator line for items */}
+                                  {isDragOver && !isItemDragged && (
+                                    <div className="h-0.5 bg-neutral-900 rounded-full mb-1.5 mx-2 animate-pulse" />
+                                  )}
+                                  <div
+                                    draggable
+                                    onDragStart={(e) => handleDragStart(e, item.id)}
+                                    onDragOver={(e) => handleDragOver(e, category, itemIndex)}
+                                    onDrop={(e) => handleDrop(e, category, itemIndex)}
+                                    onDragEnd={() => {
+                                      setDraggedItem(null);
+                                      setDragOverIndex(null);
+                                    }}
+                                    className={`flex items-center justify-between p-2 border rounded-md bg-white hover:border-neutral-300 transition-colors cursor-move group ${
+                                      isItemDragged ? 'opacity-50' : isDragOver ? 'border-neutral-900' : 'border-neutral-200'
+                                    }`}
+                                  >
+                                    <div className="flex items-center space-x-2 flex-1 min-w-0">
+                                      <GripVertical className="w-3.5 h-3.5 text-neutral-400 flex-shrink-0 hover:text-neutral-600 transition-colors" strokeWidth={1.5} />
+                                      <div className="flex-1 min-w-0">
+                                        <div className="text-xs font-medium text-neutral-900 truncate">{item.title}</div>
+                                        <div className="text-[10px] text-neutral-500 mt-0.5">
+                                          {formatCurrency(item.price_amount)}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center space-x-1 ml-2">
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setEditingItem(item);
+                                        }}
+                                        className="p-1 hover:bg-neutral-100 rounded transition-colors opacity-0 group-hover:opacity-100"
+                                        title="Edit"
+                                      >
+                                        <Edit2 className="w-3 h-3 text-neutral-600" strokeWidth={1.5} />
+                                      </button>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (confirm(`Delete "${item.title}"?`)) {
+                                            removeItem(item.id);
+                                          }
+                                        }}
+                                        className="p-1 hover:bg-red-50 rounded transition-colors opacity-0 group-hover:opacity-100"
+                                        title="Delete item"
+                                      >
+                                        <X className="w-3 h-3 text-neutral-500 hover:text-red-600" strokeWidth={1.5} />
+                                      </button>
+                                    </div>
                                   </div>
                                 </div>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setEditingItem(item);
-                                  }}
-                                  className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-neutral-200 rounded transition-all"
-                                  title="Edit"
-                                >
-                                  <Edit2 className="w-3 h-3 text-neutral-600" strokeWidth={1.5} />
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                      {/* Drop indicator line - after section */}
+                      {showDropLineAfter && (
+                        <div className="h-0.5 bg-neutral-900 rounded-full mt-2 mx-2 animate-pulse" />
                       )}
                     </div>
                   );
@@ -1333,6 +1468,15 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
               titleFontFamily={titleFontFamily}
               subtitleFontFamily={subtitleFontFamily}
               bodyFontFamily={bodyFontFamily}
+              titleFontWeight={titleFontWeight}
+              titleFontStyle={titleFontStyle}
+              titleTextDecoration={titleTextDecoration}
+              subtitleFontWeight={subtitleFontWeight}
+              subtitleFontStyle={subtitleFontStyle}
+              subtitleTextDecoration={subtitleTextDecoration}
+              bodyFontWeight={bodyFontWeight}
+              bodyFontStyle={bodyFontStyle}
+              bodyTextDecoration={bodyTextDecoration}
               onUpdateRegistry={updateRegistry}
               onEditItem={setEditingItem}
               onAddItem={handleAddItem}
@@ -1680,6 +1824,45 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
                               </div>
                             )}
                           </div>
+                          {/* Title Style Controls */}
+                          <div className="flex items-center space-x-2 mt-3">
+                            <button
+                              type="button"
+                              onClick={() => setTitleFontWeight(titleFontWeight === 'bold' ? 'normal' : 'bold')}
+                              className={`p-2 rounded-lg border transition-all ${
+                                titleFontWeight === 'bold'
+                                  ? 'bg-neutral-900 text-white border-neutral-900'
+                                  : 'bg-white text-neutral-700 border-neutral-300 hover:border-neutral-400'
+                              }`}
+                              title="Bold"
+                            >
+                              <Bold className="w-4 h-4" strokeWidth={2} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setTitleFontStyle(titleFontStyle === 'italic' ? 'normal' : 'italic')}
+                              className={`p-2 rounded-lg border transition-all ${
+                                titleFontStyle === 'italic'
+                                  ? 'bg-neutral-900 text-white border-neutral-900'
+                                  : 'bg-white text-neutral-700 border-neutral-300 hover:border-neutral-400'
+                              }`}
+                              title="Italic"
+                            >
+                              <Italic className="w-4 h-4" strokeWidth={2} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setTitleTextDecoration(titleTextDecoration === 'underline' ? 'none' : 'underline')}
+                              className={`p-2 rounded-lg border transition-all ${
+                                titleTextDecoration === 'underline'
+                                  ? 'bg-neutral-900 text-white border-neutral-900'
+                                  : 'bg-white text-neutral-700 border-neutral-300 hover:border-neutral-400'
+                              }`}
+                              title="Underline"
+                            >
+                              <Underline className="w-4 h-4" strokeWidth={2} />
+                            </button>
+                          </div>
                         </div>
 
                         {/* Subtitle Font */}
@@ -1734,6 +1917,45 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
                               </div>
                             )}
                           </div>
+                          {/* Subtitle Style Controls */}
+                          <div className="flex items-center space-x-2 mt-3">
+                            <button
+                              type="button"
+                              onClick={() => setSubtitleFontWeight(subtitleFontWeight === 'bold' ? 'normal' : 'bold')}
+                              className={`p-2 rounded-lg border transition-all ${
+                                subtitleFontWeight === 'bold'
+                                  ? 'bg-neutral-900 text-white border-neutral-900'
+                                  : 'bg-white text-neutral-700 border-neutral-300 hover:border-neutral-400'
+                              }`}
+                              title="Bold"
+                            >
+                              <Bold className="w-4 h-4" strokeWidth={2} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSubtitleFontStyle(subtitleFontStyle === 'italic' ? 'normal' : 'italic')}
+                              className={`p-2 rounded-lg border transition-all ${
+                                subtitleFontStyle === 'italic'
+                                  ? 'bg-neutral-900 text-white border-neutral-900'
+                                  : 'bg-white text-neutral-700 border-neutral-300 hover:border-neutral-400'
+                              }`}
+                              title="Italic"
+                            >
+                              <Italic className="w-4 h-4" strokeWidth={2} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSubtitleTextDecoration(subtitleTextDecoration === 'underline' ? 'none' : 'underline')}
+                              className={`p-2 rounded-lg border transition-all ${
+                                subtitleTextDecoration === 'underline'
+                                  ? 'bg-neutral-900 text-white border-neutral-900'
+                                  : 'bg-white text-neutral-700 border-neutral-300 hover:border-neutral-400'
+                              }`}
+                              title="Underline"
+                            >
+                              <Underline className="w-4 h-4" strokeWidth={2} />
+                            </button>
+                          </div>
                         </div>
 
                         {/* Body Font */}
@@ -1787,6 +2009,45 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
                                 </div>
                               </div>
                             )}
+                          </div>
+                          {/* Body Style Controls */}
+                          <div className="flex items-center space-x-2 mt-3">
+                            <button
+                              type="button"
+                              onClick={() => setBodyFontWeight(bodyFontWeight === 'bold' ? 'normal' : 'bold')}
+                              className={`p-2 rounded-lg border transition-all ${
+                                bodyFontWeight === 'bold'
+                                  ? 'bg-neutral-900 text-white border-neutral-900'
+                                  : 'bg-white text-neutral-700 border-neutral-300 hover:border-neutral-400'
+                              }`}
+                              title="Bold"
+                            >
+                              <Bold className="w-4 h-4" strokeWidth={2} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setBodyFontStyle(bodyFontStyle === 'italic' ? 'normal' : 'italic')}
+                              className={`p-2 rounded-lg border transition-all ${
+                                bodyFontStyle === 'italic'
+                                  ? 'bg-neutral-900 text-white border-neutral-900'
+                                  : 'bg-white text-neutral-700 border-neutral-300 hover:border-neutral-400'
+                              }`}
+                              title="Italic"
+                            >
+                              <Italic className="w-4 h-4" strokeWidth={2} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setBodyTextDecoration(bodyTextDecoration === 'underline' ? 'none' : 'underline')}
+                              className={`p-2 rounded-lg border transition-all ${
+                                bodyTextDecoration === 'underline'
+                                  ? 'bg-neutral-900 text-white border-neutral-900'
+                                  : 'bg-white text-neutral-700 border-neutral-300 hover:border-neutral-400'
+                              }`}
+                              title="Underline"
+                            >
+                              <Underline className="w-4 h-4" strokeWidth={2} />
+                            </button>
                           </div>
                         </div>
                       </>
@@ -2003,6 +2264,15 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
               titleFontFamily={titleFontFamily}
               subtitleFontFamily={subtitleFontFamily}
               bodyFontFamily={bodyFontFamily}
+              titleFontWeight={titleFontWeight}
+              titleFontStyle={titleFontStyle}
+              titleTextDecoration={titleTextDecoration}
+              subtitleFontWeight={subtitleFontWeight}
+              subtitleFontStyle={subtitleFontStyle}
+              subtitleTextDecoration={subtitleTextDecoration}
+              bodyFontWeight={bodyFontWeight}
+              bodyFontStyle={bodyFontStyle}
+              bodyTextDecoration={bodyTextDecoration}
               onUpdateRegistry={(updates) => {
                 updateRegistry(updates);
                 if (selectedRegistryId && user) {
