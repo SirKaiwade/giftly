@@ -1,15 +1,37 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase, Registry, RegistryItem } from '../lib/supabase';
 import PublicRegistry from './PublicRegistry';
 
 const PublicRegistryRoute = () => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [registry, setRegistry] = useState<Registry | null>(null);
   const [items, setItems] = useState<RegistryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState<'success' | 'cancelled' | null>(null);
+
+  // Check for payment status in URL
+  useEffect(() => {
+    const payment = searchParams.get('payment');
+    if (payment === 'success') {
+      setPaymentStatus('success');
+      // Remove payment param from URL after a delay
+      setTimeout(() => {
+        navigate(`/${slug}`, { replace: true });
+        setPaymentStatus(null);
+      }, 5000);
+    } else if (payment === 'cancelled') {
+      setPaymentStatus('cancelled');
+      // Remove payment param from URL after a delay
+      setTimeout(() => {
+        navigate(`/${slug}`, { replace: true });
+        setPaymentStatus(null);
+      }, 3000);
+    }
+  }, [searchParams, slug, navigate]);
 
   useEffect(() => {
     const fetchRegistry = async () => {
@@ -68,8 +90,8 @@ const PublicRegistryRoute = () => {
         
         // Update document title
         document.title = registryData.title 
-          ? `${registryData.title} - Giftly`
-          : 'Giftly - Universal Gift Registry';
+          ? `${registryData.title} - Giftendo`
+          : 'Giftendo - Universal Gift Registry';
 
         // Fetch registry items
         const { data: itemsData, error: itemsError } = await supabase
@@ -96,7 +118,7 @@ const PublicRegistryRoute = () => {
     
     // Reset title on unmount
     return () => {
-      document.title = 'Giftly - Universal Gift Registry';
+      document.title = 'Giftendo - Universal Gift Registry';
     };
   }, [slug]);
 
@@ -142,24 +164,38 @@ const PublicRegistryRoute = () => {
   }
 
   return (
-    <PublicRegistry
-      registry={registry}
-      items={items}
-      isPreview={false}
-      customThemeColors={customThemeColors}
-      titleFontFamily={(registry as any).title_font_family || 'sans'}
-      subtitleFontFamily={(registry as any).subtitle_font_family || 'sans'}
-      bodyFontFamily={(registry as any).body_font_family || 'sans'}
-      titleFontWeight={(registry as any).title_font_weight || 'normal'}
-      titleFontStyle={(registry as any).title_font_style || 'normal'}
-      titleTextDecoration={(registry as any).title_text_decoration || 'none'}
-      subtitleFontWeight={(registry as any).subtitle_font_weight || 'normal'}
-      subtitleFontStyle={(registry as any).subtitle_font_style || 'normal'}
-      subtitleTextDecoration={(registry as any).subtitle_text_decoration || 'none'}
-      bodyFontWeight={(registry as any).body_font_weight || 'normal'}
-      bodyFontStyle={(registry as any).body_font_style || 'normal'}
-      bodyTextDecoration={(registry as any).body_text_decoration || 'none'}
-    />
+    <>
+      {/* Payment Status Messages */}
+      {paymentStatus === 'success' && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg animate-fade-in">
+          <p className="font-medium">Payment successful! Thank you for your contribution.</p>
+        </div>
+      )}
+      {paymentStatus === 'cancelled' && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-yellow-500 text-white px-6 py-3 rounded-lg shadow-lg animate-fade-in">
+          <p className="font-medium">Payment cancelled. You can try again anytime.</p>
+        </div>
+      )}
+
+      <PublicRegistry
+        registry={registry}
+        items={items}
+        isPreview={false}
+        customThemeColors={customThemeColors}
+        titleFontFamily={(registry as any).title_font_family || 'sans'}
+        subtitleFontFamily={(registry as any).subtitle_font_family || 'sans'}
+        bodyFontFamily={(registry as any).body_font_family || 'sans'}
+        titleFontWeight={(registry as any).title_font_weight || 'normal'}
+        titleFontStyle={(registry as any).title_font_style || 'normal'}
+        titleTextDecoration={(registry as any).title_text_decoration || 'none'}
+        subtitleFontWeight={(registry as any).subtitle_font_weight || 'normal'}
+        subtitleFontStyle={(registry as any).subtitle_font_style || 'normal'}
+        subtitleTextDecoration={(registry as any).subtitle_text_decoration || 'none'}
+        bodyFontWeight={(registry as any).body_font_weight || 'normal'}
+        bodyFontStyle={(registry as any).body_font_style || 'normal'}
+        bodyTextDecoration={(registry as any).body_text_decoration || 'none'}
+      />
+    </>
   );
 };
 

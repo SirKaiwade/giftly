@@ -58,6 +58,24 @@ const ProfileModal = ({ user, isOpen, onClose }: ProfileModalProps) => {
     }
   }, [isOpen, user]);
 
+  // Handle return from Stripe onboarding
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const stripeReturn = urlParams.get('stripe_return');
+    const stripeRefresh = urlParams.get('stripe_refresh');
+    
+    if ((stripeReturn || stripeRefresh) && isOpen && user) {
+      // Remove query params from URL
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+      
+      // Refresh profile data after a short delay to allow webhook to process
+      setTimeout(() => {
+        loadProfile();
+      }, 2000);
+    }
+  }, [isOpen, user]);
+
   // Update active section based on scroll position
   useEffect(() => {
     if (!isOpen) return;
@@ -184,37 +202,53 @@ const ProfileModal = ({ user, isOpen, onClose }: ProfileModalProps) => {
 
   const handleConnectStripe = async () => {
     try {
-      // TODO: Implement Stripe Connect onboarding
-      // This would typically:
-      // 1. Create a Stripe Connect account for the user
-      // 2. Generate an onboarding link
-      // 3. Redirect user to Stripe onboarding
-      // 4. Handle the callback to update stripe_account_id and status
+      setIsSaving(true);
       
-      // Placeholder implementation
-      alert('Stripe Connect integration coming soon! This will allow you to receive payments directly.');
-      
-      // Example implementation (uncomment when ready):
-      /*
-      const response = await fetch('/api/stripe/connect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id }),
+      // Get the current session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        alert('Please sign in to connect your Stripe account.');
+        return;
+      }
+
+      // Call the Stripe Connect onboarding function
+      const { data, error } = await supabase.functions.invoke('stripe-connect-onboarding', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
       });
 
-      if (response.ok) {
-        const { accountId, onboardingUrl } = await response.json();
-        // Save account ID temporarily
-        setProfileData(prev => ({ ...prev, stripe_account_id: accountId }));
-        // Redirect to Stripe onboarding
-        window.location.href = onboardingUrl;
-      } else {
-        alert('Failed to connect Stripe account. Please try again.');
+      if (error) {
+        console.error('Error connecting Stripe:', error);
+        const errorMessage = error.message || 'Failed to connect Stripe account. Please try again.';
+      
+        // Check if function doesn't exist (not deployed)
+        if (errorMessage.includes('Function not found') || errorMessage.includes('404') || errorMessage.includes('not found')) {
+          alert('The Stripe Connect function is not deployed yet. Please deploy the "stripe-connect-onboarding" Edge Function in your Supabase dashboard.');
+        } else {
+          alert(errorMessage);
+        }
+        return;
       }
-      */
-    } catch (error) {
+
+      if (data && data.url) {
+        // Update local state
+        setProfileData(prev => ({
+          ...prev,
+          stripe_account_id: data.accountId || prev.stripe_account_id,
+          stripe_account_status: data.status || 'pending',
+        }));
+        
+        // Redirect to Stripe onboarding
+        window.location.href = data.url;
+      } else {
+        alert('Failed to get Stripe onboarding URL. Please try again.');
+      }
+    } catch (error: any) {
       console.error('Error connecting Stripe:', error);
-      alert('Failed to connect Stripe account. Please try again.');
+      alert(error.message || 'Failed to connect Stripe account. Please try again.');
+    } finally {
+      setIsSaving(false);
     }
   };
 

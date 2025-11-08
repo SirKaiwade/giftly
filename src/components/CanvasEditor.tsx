@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useRegistry } from '../contexts/RegistryContext';
-import { GripVertical, Plus, Edit2, Trash2, Layout, Grid, Columns, Layers, ChevronDown, ChevronRight, X, FolderPlus, Settings, Calendar, Type, Image as ImageIcon, AlignLeft, BarChart3, Palette, Pencil, Share2, Sliders, Eye, EyeOff, Bold, Italic, Underline } from 'lucide-react';
+import { GripVertical, Plus, Edit2, Trash2, Layout, Grid, Columns, Layers, ChevronDown, ChevronRight, ChevronLeft, X, FolderPlus, Settings, Calendar, Type, Image as ImageIcon, AlignLeft, BarChart3, Palette, Pencil, Share2, Sliders, Eye, EyeOff, Bold, Italic, Underline, Paintbrush } from 'lucide-react';
 import { RegistryItem, Contribution, supabase } from '../lib/supabase';
 import PublicRegistry from './PublicRegistry';
 import ItemEditModal from './ItemEditModal';
@@ -21,10 +21,8 @@ const CATEGORY_LABELS: Record<string, string> = {
   kitchen: 'Kitchen',
   bedroom: 'Bedroom',
   living: 'Living Room',
-  experience: 'Experiences',
   charity: 'Charitable Giving',
   general: 'General Registry',
-  other: 'Other',
 };
 
 type CanvasEditorProps = {
@@ -56,7 +54,12 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showNameRegistryModal, setShowNameRegistryModal] = useState(false);
   const [pendingRegistryAction, setPendingRegistryAction] = useState<((name: string) => Promise<void>) | null>(null);
-  const [userProfile, setUserProfile] = useState<{ full_name: string | null; profile_picture_url: string | null } | null>(null);
+  const [userProfile, setUserProfile] = useState<{ 
+    full_name: string | null; 
+    profile_picture_url: string | null;
+    stripe_account_id: string | null;
+    stripe_account_status: string | null;
+  } | null>(null);
   const [showRegistryDropdown, setShowRegistryDropdown] = useState(false);
   const [deletingRegistryId, setDeletingRegistryId] = useState<string | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -74,7 +77,7 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
     surfaceElevated: string;
   } | null>(null);
   const [isLoadingRegistry, setIsLoadingRegistry] = useState(false);
-  const [customizationTab, setCustomizationTab] = useState<'hero' | 'typography' | 'colors' | 'layout' | 'sections'>('hero');
+  const [customizationTab, setCustomizationTab] = useState<'theme' | 'hero' | 'typography' | 'colors' | 'layout' | 'sections'>('theme');
   const [heroImageHeight, setHeroImageHeight] = useState(60); // Viewport height percentage
   const [heroOverlayOpacity, setHeroOverlayOpacity] = useState(0.2);
   const [sectionSpacing, setSectionSpacing] = useState(6); // Tailwind spacing units
@@ -94,6 +97,11 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
   const [bodyFontStyle, setBodyFontStyle] = useState<'normal' | 'italic'>('normal');
   const [bodyTextDecoration, setBodyTextDecoration] = useState<'none' | 'underline'>('none');
   const [openFontDropdown, setOpenFontDropdown] = useState<'title' | 'subtitle' | 'body' | null>(null);
+  const [showAddSectionDropdown, setShowAddSectionDropdown] = useState(false);
+  const [showCustomSectionModal, setShowCustomSectionModal] = useState(false);
+  const [customSectionName, setCustomSectionName] = useState('');
+  const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
+  const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false);
 
   // Function to save registry with a given name
   const saveRegistryWithName = async (registryTitle: string) => {
@@ -460,23 +468,43 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
       try {
         const { data, error } = await supabase
           .from('user_profiles')
-          .select('full_name, profile_picture_url')
+          .select('full_name, profile_picture_url, stripe_account_id, stripe_account_status')
           .eq('user_id', user.id)
           .single();
 
         if (error) {
           console.log('[CanvasEditor] Profile fetch error:', error);
           // If profile doesn't exist, set null values
-          setUserProfile({ full_name: null, profile_picture_url: null });
+          setUserProfile({ 
+            full_name: null, 
+            profile_picture_url: null,
+            stripe_account_id: null,
+            stripe_account_status: null,
+          });
         } else if (data) {
           console.log('[CanvasEditor] Profile loaded:', data);
-          setUserProfile(data);
+          setUserProfile({
+            full_name: data.full_name || null,
+            profile_picture_url: data.profile_picture_url || null,
+            stripe_account_id: data.stripe_account_id || null,
+            stripe_account_status: data.stripe_account_status || null,
+          });
         } else {
-          setUserProfile({ full_name: null, profile_picture_url: null });
+          setUserProfile({ 
+            full_name: null, 
+            profile_picture_url: null,
+            stripe_account_id: null,
+            stripe_account_status: null,
+          });
         }
       } catch (err) {
         console.error('[CanvasEditor] Error fetching profile:', err);
-        setUserProfile({ full_name: null, profile_picture_url: null });
+        setUserProfile({ 
+          full_name: null, 
+          profile_picture_url: null,
+          stripe_account_id: null,
+          stripe_account_status: null,
+        });
       }
     };
 
@@ -490,15 +518,18 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
       if (!target.closest('.font-dropdown-wrapper')) {
         setOpenFontDropdown(null);
       }
+      if (!target.closest('.add-section-dropdown-wrapper')) {
+        setShowAddSectionDropdown(false);
+      }
     };
 
-    if (openFontDropdown) {
+    if (openFontDropdown || showAddSectionDropdown) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => {
         document.removeEventListener('mousedown', handleClickOutside);
       };
     }
-  }, [openFontDropdown]);
+  }, [openFontDropdown, showAddSectionDropdown]);
 
   // Auto-save registry changes to database
   useEffect(() => {
@@ -714,6 +745,8 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
   
   // Get all available categories (including ones not yet used)
   const availableCategories = CATEGORIES.filter(cat => !allCategories.has(cat));
+  // Get all categories for the dropdown
+  const allAvailableCategories = CATEGORIES;
 
   const handleDragStart = (e: React.DragEvent, itemId: string) => {
     setDraggedItem(itemId);
@@ -887,10 +920,26 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
     
     // Add section to active sections (so it appears even without items)
     setActiveSections(prev => new Set([...prev, category]));
+  };
+
+  const handleAddCustomSection = () => {
+    const trimmedName = customSectionName.trim().toLowerCase();
+    if (!trimmedName) return;
     
-    // Select the new section and expand it
-    setSelectedSection(category);
-    setExpandedSections(prev => ({ ...prev, [category]: true }));
+    // Check if section already exists
+    if (categories.includes(trimmedName) || activeSections.has(trimmedName)) {
+      setSelectedSection(trimmedName);
+      setExpandedSections(prev => ({ ...prev, [trimmedName]: true }));
+    } else {
+      // Add custom section
+      setActiveSections(prev => new Set([...prev, trimmedName]));
+      setSelectedSection(trimmedName);
+      setExpandedSections(prev => ({ ...prev, [trimmedName]: true }));
+    }
+    
+    setShowCustomSectionModal(false);
+    setCustomSectionName('');
+    setShowAddSectionDropdown(false);
   };
 
   const handleRemoveSection = (category: string) => {
@@ -1260,12 +1309,17 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
                   // Refresh profile when opening modal
                   supabase
                     .from('user_profiles')
-                    .select('full_name, profile_picture_url')
+                    .select('full_name, profile_picture_url, stripe_account_id, stripe_account_status')
                     .eq('user_id', user.id)
                     .single()
                     .then(({ data }) => {
                       if (data) {
-                        setUserProfile(data);
+                        setUserProfile({
+                          full_name: data.full_name || null,
+                          profile_picture_url: data.profile_picture_url || null,
+                          stripe_account_id: data.stripe_account_id || null,
+                          stripe_account_status: data.stripe_account_status || null,
+                        });
                       }
                     });
                 }}
@@ -1314,42 +1368,104 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar - Functional (Sections & Items) */}
         {!fullScreenPreview && (
-          <div className="w-80 border-r border-neutral-200 bg-white overflow-y-auto">
+          <>
+            {/* Collapse/Expand Toggle Button - Always visible, positioned outside */}
+            <button
+              onClick={() => setLeftPanelCollapsed(!leftPanelCollapsed)}
+              className={`fixed top-20 z-30 p-2 rounded-full bg-white border border-neutral-200 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110 ${
+                leftPanelCollapsed ? 'left-2' : 'left-[320px]'
+              }`}
+              title={leftPanelCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {leftPanelCollapsed ? (
+                <ChevronRight className="w-4 h-4 text-neutral-700" strokeWidth={2.5} />
+              ) : (
+                <ChevronLeft className="w-4 h-4 text-neutral-700" strokeWidth={2.5} />
+              )}
+            </button>
+            <div className={`relative border-r border-neutral-200 bg-white overflow-hidden transition-all duration-500 ease-in-out ${
+              leftPanelCollapsed ? 'w-0 border-r-0' : 'w-80'
+            }`}>
+            <div className={`h-full overflow-y-auto transition-all duration-500 ease-in-out ${
+              leftPanelCollapsed 
+                ? 'opacity-0 pointer-events-none -translate-x-2' 
+                : 'opacity-100 translate-x-0'
+            }`}>
             <div className="p-6 space-y-6">
 
             {/* Sections & Items */}
             <div>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-medium text-neutral-900">Sections & Items</h2>
-                <span className="text-xs text-neutral-500">{categories.length} {categories.length === 1 ? 'section' : 'sections'}</span>
+              <div className="flex items-center justify-between mb-6 pb-4 border-b border-neutral-200">
+                <h2 className="text-base font-semibold text-neutral-900 tracking-tight">Sections & Items</h2>
+                <span className="text-xs font-medium text-neutral-500 bg-neutral-100 px-2 py-0.5 rounded-full">{categories.length}</span>
               </div>
 
               {/* Add Section Button */}
-              <div className="mb-4">
+              <div className="mb-4 relative add-section-dropdown-wrapper">
                 <button
-                  onClick={() => {
-                    const category = availableCategories[0] || 'general';
-                    handleAddSection(category);
-                  }}
+                  onClick={() => setShowAddSectionDropdown(!showAddSectionDropdown)}
                   className="w-full px-4 py-2.5 border-2 border-dashed border-neutral-300 hover:border-neutral-900 hover:bg-neutral-50 text-neutral-700 font-medium rounded-lg transition-all duration-200 flex items-center justify-center space-x-2"
                 >
                   <FolderPlus className="w-4 h-4" strokeWidth={1.5} />
                   <span className="text-sm">Add Section</span>
+                  <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${showAddSectionDropdown ? 'rotate-180' : ''}`} strokeWidth={1.5} />
                 </button>
                 
-                {/* Available Sections */}
-                {availableCategories.length > 0 && (
-                  <div className="mt-2 space-y-0.5">
-                    {availableCategories.slice(0, 5).map((category) => (
-                      <button
-                        key={category}
-                        onClick={() => handleAddSection(category)}
-                        className="w-full px-3 py-1.5 text-left text-xs text-neutral-600 hover:bg-neutral-50 rounded transition-colors flex items-center space-x-1"
-                      >
-                        <Plus className="w-3 h-3" strokeWidth={1.5} />
-                        <span>{CATEGORY_LABELS[category] || category.charAt(0).toUpperCase() + category.slice(1)}</span>
-                      </button>
-                    ))}
+                {/* Section Selection Dropdown */}
+                {showAddSectionDropdown && (
+                  <div className="absolute z-20 w-full mt-2 border border-neutral-200 rounded-lg bg-white shadow-xl overflow-hidden">
+                    <div className="max-h-64 overflow-y-auto">
+                      {allAvailableCategories.map((category) => {
+                        const isAlreadyAdded = categories.includes(category);
+                        const isSuggested = availableCategories.includes(category);
+                        return (
+                          <button
+                            key={category}
+                            onClick={() => {
+                              if (!isAlreadyAdded) {
+                                handleAddSection(category);
+                              } else {
+                                setSelectedSection(category);
+                                setExpandedSections(prev => ({ ...prev, [category]: true }));
+                              }
+                              setShowAddSectionDropdown(false);
+                            }}
+                            disabled={isAlreadyAdded}
+                            className={`w-full px-4 py-2.5 text-left text-sm transition-all flex items-center justify-between ${
+                              isAlreadyAdded
+                                ? 'text-neutral-400 cursor-not-allowed bg-neutral-50'
+                                : isSuggested
+                                ? 'text-neutral-900 hover:bg-neutral-50 font-medium'
+                                : 'text-neutral-700 hover:bg-neutral-50'
+                            }`}
+                          >
+                            <div className="flex items-center space-x-2">
+                              {!isAlreadyAdded && <Plus className="w-4 h-4" strokeWidth={1.5} />}
+                              {isAlreadyAdded && <X className="w-4 h-4" strokeWidth={1.5} />}
+                              <span>{CATEGORY_LABELS[category] || category.charAt(0).toUpperCase() + category.slice(1)}</span>
+                            </div>
+                            {isSuggested && !isAlreadyAdded && (
+                              <span className="text-xs text-neutral-500 bg-neutral-100 px-2 py-0.5 rounded-full">Suggested</span>
+                            )}
+                            {isAlreadyAdded && (
+                              <span className="text-xs text-neutral-400">Added</span>
+                            )}
+                          </button>
+                        );
+                      })}
+                      <div className="border-t border-neutral-200">
+                        <button
+                          onClick={() => {
+                            setShowAddSectionDropdown(false);
+                            setShowCustomSectionModal(true);
+                          }}
+                          className="w-full px-4 py-2.5 text-left text-sm transition-all flex items-center space-x-2 text-neutral-900 hover:bg-neutral-50 font-medium"
+                        >
+                          <Plus className="w-4 h-4" strokeWidth={1.5} />
+                          <span>Custom Section</span>
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1386,13 +1502,13 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
                         }}
                         className={`transition-all ${isDragged ? 'opacity-50' : ''}`}
                       >
-                        {/* Section Header - Cleaner style matching customization tab */}
+                        {/* Section Header - Enhanced visual hierarchy */}
                         <div
-                          className={`flex items-center justify-between p-2.5 border rounded-md bg-white hover:border-neutral-300 transition-colors group ${
-                            isSelected ? 'border-neutral-900 shadow-sm' : 'border-neutral-200'
+                          className={`flex items-center justify-between p-3 border rounded-lg bg-white hover:border-neutral-400 hover:shadow-sm transition-all group mb-2 ${
+                            isSelected ? 'border-neutral-900 shadow-md bg-neutral-50' : 'border-neutral-200'
                           }`}
                         >
-                          <div className="flex items-center space-x-2 flex-1 min-w-0">
+                          <div className="flex items-center space-x-2.5 flex-1 min-w-0">
                             <GripVertical 
                               className="w-4 h-4 text-neutral-400 flex-shrink-0 cursor-move hover:text-neutral-600 transition-colors"
                               strokeWidth={1.5}
@@ -1403,16 +1519,16 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
                                 e.stopPropagation();
                                 toggleSection(category);
                               }}
-                              className="p-0.5 hover:bg-neutral-100 rounded transition-colors flex-shrink-0"
+                              className="p-1 hover:bg-neutral-100 rounded transition-colors flex-shrink-0"
                             >
                               {isExpanded ? (
-                                <ChevronDown className="w-3.5 h-3.5 text-neutral-500" strokeWidth={1.5} />
+                                <ChevronDown className="w-4 h-4 text-neutral-600" strokeWidth={2} />
                               ) : (
-                                <ChevronRight className="w-3.5 h-3.5 text-neutral-500" strokeWidth={1.5} />
+                                <ChevronRight className="w-4 h-4 text-neutral-600" strokeWidth={2} />
                               )}
                             </button>
                             <span 
-                              className="text-xs font-medium text-neutral-900 truncate cursor-pointer flex-1"
+                              className="text-sm font-semibold text-neutral-900 truncate cursor-pointer flex-1"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setSelectedSection(category);
@@ -1423,7 +1539,7 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
                             >
                               {CATEGORY_LABELS[category] || category.charAt(0).toUpperCase() + category.slice(1)}
                             </span>
-                            <span className="text-[10px] text-neutral-500 flex-shrink-0">({items.length})</span>
+                            <span className="text-xs font-medium text-neutral-500 bg-neutral-100 px-2 py-0.5 rounded-full flex-shrink-0">{items.length}</span>
                           </div>
                           <div className="flex items-center space-x-1 ml-2">
                             <button
@@ -1451,7 +1567,7 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
                       
                         {/* Section Items */}
                         {isExpanded && items.length > 0 && (
-                          <div className="mt-2 space-y-1.5 pl-2">
+                          <div className="mt-2 space-y-2 pl-4 border-l-2 border-neutral-100 ml-2">
                             {items.map((item, itemIndex) => {
                               const isDragOver = dragOverIndex?.category === category && dragOverIndex?.index === itemIndex;
                               const isItemDragged = draggedItem === item.id;
@@ -1460,7 +1576,7 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
                                 <div key={item.id}>
                                   {/* Drop indicator line for items */}
                                   {isDragOver && !isItemDragged && (
-                                    <div className="h-0.5 bg-neutral-900 rounded-full mb-1.5 mx-2 animate-pulse" />
+                                    <div className="h-0.5 bg-neutral-900 rounded-full mb-2 mx-2 animate-pulse" />
                                   )}
                                   <div
                                     draggable
@@ -1471,15 +1587,15 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
                                       setDraggedItem(null);
                                       setDragOverIndex(null);
                                     }}
-                                    className={`flex items-center justify-between p-2 border rounded-md bg-white hover:border-neutral-300 transition-colors cursor-move group ${
-                                      isItemDragged ? 'opacity-50' : isDragOver ? 'border-neutral-900' : 'border-neutral-200'
+                                    className={`flex items-center justify-between p-2.5 border rounded-lg bg-white hover:border-neutral-400 hover:shadow-sm transition-all cursor-move group ${
+                                      isItemDragged ? 'opacity-50' : isDragOver ? 'border-neutral-900 shadow-md' : 'border-neutral-200'
                                     }`}
                                   >
-                                    <div className="flex items-center space-x-2 flex-1 min-w-0">
+                                    <div className="flex items-center space-x-2.5 flex-1 min-w-0">
                                       <GripVertical className="w-3.5 h-3.5 text-neutral-400 flex-shrink-0 hover:text-neutral-600 transition-colors" strokeWidth={1.5} />
                                       <div className="flex-1 min-w-0">
-                                        <div className="text-xs font-medium text-neutral-900 truncate">{item.title}</div>
-                                        <div className="text-[10px] text-neutral-500 mt-0.5">
+                                        <div className="text-xs font-medium text-neutral-900 truncate leading-tight">{item.title}</div>
+                                        <div className="text-[10px] text-neutral-500 mt-1 font-medium">
                                           {formatCurrency(item.price_amount)}
                                         </div>
                                       </div>
@@ -1498,9 +1614,7 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          if (confirm(`Delete "${item.title}"?`)) {
-                                            removeItem(item.id);
-                                          }
+                                          removeItem(item.id);
                                         }}
                                         className="p-1 hover:bg-red-50 rounded transition-colors opacity-0 group-hover:opacity-100"
                                         title="Delete item"
@@ -1530,13 +1644,17 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
               )}
             </div>
             </div>
+            </div>
+            </div>
           </div>
-          </div>
+          </>
         )}
 
         {/* Live Preview - Centered between sidebars */}
         {!fullScreenPreview && (
-          <div className="flex-1 overflow-y-auto bg-neutral-100">
+          <div 
+            className="flex-1 overflow-y-auto bg-neutral-100 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+          >
             <div 
               className="w-full h-full flex items-start justify-center"
               style={{ 
@@ -1602,145 +1720,44 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
 
         {/* Right Sidebar - Customization */}
         {!fullScreenPreview && (
-          <div className="w-80 border-l border-neutral-200 bg-gradient-to-b from-neutral-50 to-white overflow-y-auto">
-            <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-neutral-200 px-4 py-3 z-10 flex items-center justify-between shadow-sm">
-              <div className="flex items-center space-x-2">
-                <Sliders className="w-4 h-4 text-neutral-600" strokeWidth={1.5} />
-                <h2 className="text-sm font-semibold text-neutral-900">Customize</h2>
-              </div>
-            </div>
-
-            <div className="p-4">
-              {/* Theme Selector - At the top */}
-              <div className="mb-6">
-                <div className="flex items-center space-x-2 mb-3">
-                  <Palette className="w-4 h-4 text-neutral-600" strokeWidth={1.5} />
-                  <h3 className="text-xs font-semibold text-neutral-900 uppercase tracking-wide">Theme</h3>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {THEMES.map((theme) => {
-                    const isSelected = currentRegistry?.theme === theme.value;
-                    const isMinimal = theme.value === 'minimal';
-                    const isCustom = theme.value === 'custom';
-                    
-                    return (
-                      <button
-                        key={theme.value}
-                        onClick={() => {
-                          updateRegistry({ theme: theme.value });
-                          if (theme.value === 'custom' && !customThemeColors) {
-                            const defaultCustom = THEMES.find(t => t.value === 'custom');
-                            setCustomThemeColors(defaultCustom?.colors || null);
-                          }
-                          if (selectedRegistryId && user) {
-                            supabase
-                              .from('registries')
-                              .update({ theme: theme.value, updated_at: new Date().toISOString() })
-                              .eq('id', selectedRegistryId);
-                          }
-                          if (theme.value === 'custom') {
-                            setShowCustomThemeEditor(true);
-                          }
-                        }}
-                        className={`relative rounded-lg transition-all overflow-hidden ${
-                          isSelected 
-                            ? 'shadow-lg' 
-                            : 'hover:shadow-md'
-                        } ${isCustom ? 'p-2.5' : 'p-3'}`}
-                        style={{
-                          backgroundColor: isMinimal ? '#ffffff' : theme.colors.surface,
-                          border: isMinimal && !isSelected ? '1px solid #e5e5e5' : isSelected ? `2px solid ${theme.colors.accent}` : 'none',
-                          boxShadow: isSelected ? `0 0 0 2px ${theme.colors.accent}20, 0 10px 15px -3px rgba(0, 0, 0, 0.1)` : undefined,
-                        }}
-                        title={theme.label}
-                      >
-                        {!isMinimal && !isCustom && (
-                          <div 
-                            className="absolute inset-0 opacity-30"
-                            style={{
-                              background: `linear-gradient(135deg, ${theme.colors.accent}15 0%, ${theme.colors.background}15 50%, ${theme.colors.accent}15 100%)`
-                            }}
-                          />
-                        )}
-                        
-                        {isCustom ? (
-                          <div className="relative flex flex-col items-center space-y-1.5">
-                            <div className="w-full h-8 rounded-md border-2 border-dashed flex items-center justify-center"
-                              style={{ 
-                                borderColor: isSelected ? theme.colors.accent : '#d4d4d4',
-                                backgroundColor: theme.colors.surface
-                              }}
-                            >
-                              <Palette className="w-4 h-4" style={{ color: theme.colors.accent }} strokeWidth={1.5} />
-                            </div>
-                            <span 
-                              className="text-[10px] font-semibold leading-tight text-center"
-                              style={{ color: theme.colors.text }}
-                            >
-                              Custom
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="relative flex flex-col items-center space-y-2">
-                            <div className="flex space-x-1.5">
-                              <div 
-                                className="w-4 h-4 rounded-full shadow-sm"
-                                style={{ 
-                                  backgroundColor: theme.colors.accent,
-                                  border: isMinimal ? '1px solid rgba(0,0,0,0.1)' : 'none'
-                                }}
-                              />
-                              <div 
-                                className="w-4 h-4 rounded-full shadow-sm"
-                                style={{ 
-                                  backgroundColor: theme.colors.background,
-                                  border: isMinimal ? '1px solid rgba(0,0,0,0.1)' : 'none'
-                                }}
-                              />
-                              <div 
-                                className="w-4 h-4 rounded-full shadow-sm"
-                                style={{ 
-                                  backgroundColor: theme.colors.surface,
-                                  border: isMinimal ? '1px solid rgba(0,0,0,0.1)' : 'none'
-                                }}
-                              />
-                            </div>
-                            <span 
-                              className="text-[10px] font-semibold leading-tight text-center"
-                              style={{ color: theme.colors.text }}
-                            >
-                              {theme.label.split(' ')[0]}
-                            </span>
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Custom Theme Editor Button */}
-              {currentRegistry?.theme === 'custom' && (
-                <button
-                  onClick={() => setShowCustomThemeEditor(true)}
-                  className="w-full px-3 py-2 text-xs font-medium text-neutral-700 bg-neutral-50 hover:bg-neutral-100 rounded-lg transition-colors flex items-center justify-center space-x-1.5 mb-6"
-                >
-                  <Palette className="w-3.5 h-3.5" strokeWidth={1.5} />
-                  <span>Customize Colors</span>
-                </button>
+          <>
+            {/* Collapse/Expand Toggle Button - Always visible, positioned outside */}
+            <button
+              onClick={() => setRightPanelCollapsed(!rightPanelCollapsed)}
+              className={`fixed top-20 z-30 p-2 rounded-full bg-white border border-neutral-200 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110 ${
+                rightPanelCollapsed ? 'right-2' : 'right-[320px]'
+              }`}
+              title={rightPanelCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {rightPanelCollapsed ? (
+                <ChevronLeft className="w-4 h-4 text-neutral-700" strokeWidth={2.5} />
+              ) : (
+                <ChevronRight className="w-4 h-4 text-neutral-700" strokeWidth={2.5} />
               )}
-
-              {/* Divider */}
-              <div className="border-t border-neutral-200 mb-4" />
-
-              {/* Tabs - More compact and intuitive */}
-              <div className="flex flex-wrap gap-1 mb-4">
+            </button>
+            <div className={`relative border-l border-neutral-200 bg-white overflow-hidden transition-all duration-500 ease-in-out ${
+              rightPanelCollapsed ? 'w-0 border-l-0' : 'w-80'
+            }`}>
+            <div className={`h-full overflow-y-auto transition-all duration-500 ease-in-out ${
+              rightPanelCollapsed 
+                ? 'opacity-0 pointer-events-none translate-x-2' 
+                : 'opacity-100 translate-x-0'
+            }`}>
+            <div className="sticky top-0 bg-white border-b border-neutral-200 px-5 py-4 z-10 shadow-sm">
+              <div className="flex items-center space-x-2 mb-4">
+                <Sliders className="w-4 h-4 text-neutral-700" strokeWidth={1.5} />
+                <h2 className="text-sm font-semibold text-neutral-900 tracking-tight">Customize</h2>
+              </div>
+              
+              {/* Tabs - 3x2 Grid Layout */}
+              <div className="grid grid-cols-3 gap-2">
                 {[
-                  { id: 'hero', label: 'Hero', icon: ImageIcon, short: 'H' },
-                  { id: 'typography', label: 'Typography', icon: Type, short: 'T' },
-                  { id: 'colors', label: 'Colors', icon: Palette, short: 'C' },
-                  { id: 'layout', label: 'Layout', icon: Layout, short: 'L' },
-                  { id: 'sections', label: 'Sections', icon: Layers, short: 'S' },
+                  { id: 'theme', label: 'Theme', icon: Palette },
+                  { id: 'hero', label: 'Hero', icon: ImageIcon },
+                  { id: 'typography', label: 'Typography', icon: Type },
+                  { id: 'colors', label: 'Colors', icon: Paintbrush },
+                  { id: 'layout', label: 'Layout', icon: Layout },
+                  { id: 'sections', label: 'Sections', icon: Layers },
                 ].map((tab) => {
                   const Icon = tab.icon;
                   const isActive = customizationTab === tab.id;
@@ -1748,26 +1765,147 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
                     <button
                       key={tab.id}
                       onClick={() => setCustomizationTab(tab.id as any)}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                      className={`px-2 py-2.5 text-xs font-medium rounded-lg transition-all flex flex-col items-center justify-center space-y-1 ${
                         isActive
                           ? 'bg-neutral-900 text-white shadow-sm'
-                          : 'bg-white text-neutral-600 hover:bg-neutral-100 border border-neutral-200'
+                          : 'bg-neutral-50 text-neutral-600 hover:bg-neutral-100 border border-neutral-200'
                       }`}
                       title={tab.label}
                     >
-                      <div className="flex items-center space-x-1.5">
-                        <Icon className="w-3.5 h-3.5" strokeWidth={1.5} />
-                        <span className="hidden sm:inline">{tab.label}</span>
-                        <span className="sm:hidden">{tab.short}</span>
-                      </div>
+                      <Icon className="w-4 h-4" strokeWidth={1.5} />
+                      <span className="text-[10px] leading-tight text-center">{tab.label}</span>
                     </button>
                   );
                 })}
               </div>
+            </div>
+
+            <div className="p-5">
+              {/* Theme Customization */}
+              {customizationTab === 'theme' && (
+                <div className="space-y-6 pt-2">
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-700 mb-4 uppercase tracking-wide">
+                      Choose Theme
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {THEMES.map((theme) => {
+                        const isSelected = currentRegistry?.theme === theme.value;
+                        const isMinimal = theme.value === 'minimal';
+                        const isCustom = theme.value === 'custom';
+                        
+                        return (
+                          <button
+                            key={theme.value}
+                            onClick={() => {
+                              updateRegistry({ theme: theme.value });
+                              if (theme.value === 'custom' && !customThemeColors) {
+                                const defaultCustom = THEMES.find(t => t.value === 'custom');
+                                setCustomThemeColors(defaultCustom?.colors || null);
+                              }
+                              if (selectedRegistryId && user) {
+                                supabase
+                                  .from('registries')
+                                  .update({ theme: theme.value, updated_at: new Date().toISOString() })
+                                  .eq('id', selectedRegistryId);
+                              }
+                              if (theme.value === 'custom') {
+                                setShowCustomThemeEditor(true);
+                              }
+                            }}
+                            className={`relative rounded-lg transition-all overflow-hidden ${
+                              isSelected 
+                                ? 'shadow-lg' 
+                                : 'hover:shadow-md'
+                            } ${isCustom ? 'p-2.5' : 'p-3'}`}
+                            style={{
+                              backgroundColor: isMinimal ? '#ffffff' : theme.colors.surface,
+                              border: isMinimal && !isSelected ? '1px solid #e5e5e5' : isSelected ? `2px solid ${theme.colors.accent}` : 'none',
+                              boxShadow: isSelected ? `0 0 0 2px ${theme.colors.accent}20, 0 10px 15px -3px rgba(0, 0, 0, 0.1)` : undefined,
+                            }}
+                            title={theme.label}
+                          >
+                            {!isMinimal && !isCustom && (
+                              <div 
+                                className="absolute inset-0 opacity-30"
+                                style={{
+                                  background: `linear-gradient(135deg, ${theme.colors.accent}15 0%, ${theme.colors.background}15 50%, ${theme.colors.accent}15 100%)`
+                                }}
+                              />
+                            )}
+                            
+                            {isCustom ? (
+                              <div className="relative flex flex-col items-center space-y-1.5">
+                                <div className="w-full h-8 rounded-md border-2 border-dashed flex items-center justify-center"
+                                  style={{ 
+                                    borderColor: isSelected ? theme.colors.accent : '#d4d4d4',
+                                    backgroundColor: theme.colors.surface
+                                  }}
+                                >
+                                  <Palette className="w-4 h-4" style={{ color: theme.colors.accent }} strokeWidth={1.5} />
+                                </div>
+                                <span 
+                                  className="text-[10px] font-semibold leading-tight text-center"
+                                  style={{ color: theme.colors.text }}
+                                >
+                                  Custom
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="relative flex flex-col items-center space-y-2">
+                                <div className="flex space-x-1.5">
+                                  <div 
+                                    className="w-4 h-4 rounded-full shadow-sm"
+                                    style={{ 
+                                      backgroundColor: theme.colors.accent,
+                                      border: isMinimal ? '1px solid rgba(0,0,0,0.1)' : 'none'
+                                    }}
+                                  />
+                                  <div 
+                                    className="w-4 h-4 rounded-full shadow-sm"
+                                    style={{ 
+                                      backgroundColor: theme.colors.background,
+                                      border: isMinimal ? '1px solid rgba(0,0,0,0.1)' : 'none'
+                                    }}
+                                  />
+                                  <div 
+                                    className="w-4 h-4 rounded-full shadow-sm"
+                                    style={{ 
+                                      backgroundColor: theme.colors.surface,
+                                      border: isMinimal ? '1px solid rgba(0,0,0,0.1)' : 'none'
+                                    }}
+                                  />
+                                </div>
+                                <span 
+                                  className="text-[10px] font-semibold leading-tight text-center"
+                                  style={{ color: theme.colors.text }}
+                                >
+                                  {theme.label.split(' ')[0]}
+                                </span>
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Custom Theme Editor Button */}
+                  {currentRegistry?.theme === 'custom' && (
+                    <button
+                      onClick={() => setShowCustomThemeEditor(true)}
+                      className="w-full px-3 py-2 text-xs font-medium text-neutral-700 bg-neutral-50 hover:bg-neutral-100 rounded-lg transition-colors flex items-center justify-center space-x-1.5"
+                    >
+                      <Palette className="w-3.5 h-3.5" strokeWidth={1.5} />
+                      <span>Customize Colors</span>
+                    </button>
+                  )}
+                </div>
+              )}
 
               {/* Hero Image Customization */}
               {customizationTab === 'hero' && (
-                <div className="space-y-5">
+                <div className="space-y-6 pt-2">
                   <div>
                     <label className="block text-xs font-semibold text-neutral-700 mb-2.5 uppercase tracking-wide">
                       Image Position
@@ -1853,7 +1991,7 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
 
               {/* Typography Customization */}
               {customizationTab === 'typography' && (
-                <div className="space-y-4">
+                <div className="space-y-6 pt-2">
                   {/* Helper function to get font name */}
                   {(() => {
                     const getFontName = (font: string) => {
@@ -2178,7 +2316,7 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
 
               {/* Colors Customization */}
               {customizationTab === 'colors' && (
-                <div className="space-y-5">
+                <div className="space-y-6 pt-2">
                   {currentRegistry?.theme === 'custom' ? (
                     <div>
                       <p className="text-xs text-neutral-500 mb-4 leading-relaxed">
@@ -2248,7 +2386,7 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
 
               {/* Layout Customization */}
               {customizationTab === 'layout' && (
-                <div className="space-y-5">
+                <div className="space-y-6 pt-2">
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <label className="block text-xs font-semibold text-neutral-700 uppercase tracking-wide">
@@ -2295,7 +2433,7 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
 
               {/* Sections Customization */}
               {customizationTab === 'sections' && (
-                <div className="space-y-3">
+                <div className="space-y-4 pt-2">
                   <p className="text-xs text-neutral-500 mb-4 leading-relaxed">
                     Show or hide sections on your registry.
                   </p>
@@ -2337,13 +2475,15 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
                 </div>
               )}
             </div>
+            </div>
           </div>
+          </>
         )}
 
 
         {/* Fullscreen Preview */}
         {fullScreenPreview && (
-          <div className="w-full fixed inset-0 z-40 bg-white overflow-y-auto">
+          <div className="w-full fixed inset-0 z-40 bg-white overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <div className="sticky top-0 bg-white border-b border-neutral-200 px-6 py-4 z-10 flex items-center justify-between">
               <h3 className="text-sm font-medium text-neutral-900">Live Preview</h3>
               <button
@@ -2635,9 +2775,9 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
                 </button>
               </div>
             </div>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Custom Theme Editor Modal */}
       {showCustomThemeEditor && (
@@ -2821,18 +2961,72 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
             if (user) {
               supabase
                 .from('user_profiles')
-                .select('full_name, profile_picture_url')
+                .select('full_name, profile_picture_url, stripe_account_id, stripe_account_status')
                 .eq('user_id', user.id)
                 .single()
                 .then(({ data }) => {
                   if (data) {
-                    setUserProfile(data);
+                    setUserProfile({
+                      full_name: data.full_name || null,
+                      profile_picture_url: data.profile_picture_url || null,
+                      stripe_account_id: data.stripe_account_id || null,
+                      stripe_account_status: data.stripe_account_status || null,
+                    });
                   }
                 });
             }
           }}
         />
       )}
+      {/* Custom Section Modal */}
+      {showCustomSectionModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-md">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-xl">
+            <div className="p-6 border-b border-neutral-200">
+              <h3 className="text-xl font-semibold text-neutral-900">Create Custom Section</h3>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-2">
+                  Section Name
+                </label>
+                <input
+                  type="text"
+                  value={customSectionName}
+                  onChange={(e) => setCustomSectionName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && customSectionName.trim()) {
+                      handleAddCustomSection();
+                    }
+                  }}
+                  placeholder="e.g., Electronics, Outdoor, etc."
+                  className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-neutral-900 focus:border-neutral-900"
+                  autoFocus
+                />
+              </div>
+            </div>
+            <div className="p-6 border-t border-neutral-200 flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowCustomSectionModal(false);
+                  setCustomSectionName('');
+                }}
+                className="px-4 py-2 text-neutral-700 hover:text-neutral-900 font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddCustomSection}
+                disabled={!customSectionName.trim()}
+                className="px-4 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Add Section
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Name Registry Modal */}
       <NameRegistryModal
         isOpen={showNameRegistryModal}

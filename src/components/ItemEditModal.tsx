@@ -23,6 +23,10 @@ const ItemEditModal = ({ item, onSave, onClose }: ItemEditModalProps) => {
 
   const initialPosition = parseImagePosition(item.image_position);
   
+  const isCustomCategoryInitial = !CATEGORIES.includes(item.category);
+  const [customCategory, setCustomCategory] = useState(isCustomCategoryInitial ? item.category : '');
+  const [isCustomCategory, setIsCustomCategory] = useState(isCustomCategoryInitial);
+  
   const [formData, setFormData] = useState({
     title: item.title,
     description: item.description,
@@ -30,7 +34,7 @@ const ItemEditModal = ({ item, onSave, onClose }: ItemEditModalProps) => {
     item_type: item.item_type,
     price_amount: item.price_amount / 100,
     external_link: item.external_link,
-    category: item.category,
+    category: isCustomCategoryInitial ? 'custom' : item.category,
     image_position: item.image_position || 'center',
     image_scale: item.image_scale || 1,
     hours_needed: (item as any).hours_needed || 0,
@@ -52,8 +56,10 @@ const ItemEditModal = ({ item, onSave, onClose }: ItemEditModalProps) => {
     e.preventDefault();
     // Convert position to CSS format
     const positionStr = `${imagePosition.x}% ${imagePosition.y}%`;
+    const finalCategory = isCustomCategory && customCategory.trim() ? customCategory.trim().toLowerCase() : formData.category;
     const saveData: any = {
       ...formData,
+      category: finalCategory,
       price_amount: Math.round(formData.price_amount * 100),
       image_position: positionStr,
       image_scale: imageScale,
@@ -393,7 +399,17 @@ const ItemEditModal = ({ item, onSave, onClose }: ItemEditModalProps) => {
               </label>
               <select
                 value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === 'custom') {
+                    setIsCustomCategory(true);
+                    setFormData({ ...formData, category: 'custom' });
+                  } else {
+                    setIsCustomCategory(false);
+                    setCustomCategory('');
+                    setFormData({ ...formData, category: value });
+                  }
+                }}
                 className="input-field"
               >
                 {CATEGORIES.map((cat) => (
@@ -401,7 +417,17 @@ const ItemEditModal = ({ item, onSave, onClose }: ItemEditModalProps) => {
                     {cat.charAt(0).toUpperCase() + cat.slice(1)}
                   </option>
                 ))}
+                <option value="custom">Custom</option>
               </select>
+              {isCustomCategory && (
+                <input
+                  type="text"
+                  value={customCategory}
+                  onChange={(e) => setCustomCategory(e.target.value)}
+                  placeholder="Enter custom category name"
+                  className="input-field mt-2"
+                />
+              )}
             </div>
 
             {/* Conditional Price/Goal Fields */}

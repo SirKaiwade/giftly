@@ -147,11 +147,7 @@ const PublicRegistry = ({
     };
   };
 
-  // Separate header items from regular items
-  const headerItems = items.filter(item => item.category === 'header');
-  const regularItems = items.filter(item => item.category !== 'header');
-
-  const groupedItems = regularItems.reduce((acc, item) => {
+  const groupedItems = items.reduce((acc, item) => {
     // Skip hidden sections
     if (hiddenSections.has(item.category)) {
       return acc;
@@ -172,10 +168,14 @@ const PublicRegistry = ({
 
   const categoryLabels: Record<string, string> = {
     honeymoon: 'Honeymoon Fund',
-    experience: 'Experiences',
     charity: 'Charitable Giving',
     home: 'For Our Home',
     general: 'General Registry',
+  };
+  
+  // Helper to check if item should display as wide (fund items)
+  const isWideItem = (item: RegistryItem) => {
+    return item.item_type === 'cash' || item.item_type === 'partial' || item.item_type === 'charity';
   };
 
   return (
@@ -204,9 +204,9 @@ const PublicRegistry = ({
             }}
           />
           <div className="absolute inset-0 flex items-center justify-center z-20">
-            <div className="text-center px-6 max-w-4xl w-full">
+            <div className="text-center px-6 max-w-4xl w-full py-12">
               {editingField === 'title' ? (
-                <div className="relative mb-4">
+                <div className="relative mb-6">
                   <input
                     type="text"
                     value={editValue}
@@ -228,7 +228,7 @@ const PublicRegistry = ({
                         setEditingField(null);
                       }
                     }}
-                    className="text-display-2 md:text-display-1 font-light tracking-tight text-center w-full bg-white/90 backdrop-blur-sm px-4 py-2 rounded-lg border-2 border-white/50 focus:outline-none focus:ring-2 focus:ring-white/50"
+                    className="text-4xl md:text-6xl lg:text-7xl font-light tracking-tight text-center w-full bg-white/95 backdrop-blur-md px-6 py-4 rounded-xl border-2 border-white/60 focus:outline-none focus:ring-2 focus:ring-white/60 shadow-xl"
                     style={{ 
                       color: themeColors.text,
                       ...getFontStyle('title')
@@ -237,7 +237,7 @@ const PublicRegistry = ({
                   />
                 </div>
               ) : (
-                <div className="group relative mb-4">
+                <div className="group relative mb-6">
                   <h1 
                     onClick={() => {
                       if (isPreview && onUpdateRegistry) {
@@ -245,9 +245,10 @@ const PublicRegistry = ({
                         setEditValue(registry.title || '');
                       }
                     }}
-                    className={`text-display-2 md:text-display-1 font-light tracking-tight mb-4 text-balance drop-shadow-lg ${isPreview && onUpdateRegistry ? 'cursor-text' : ''}`}
+                    className={`text-4xl md:text-6xl lg:text-7xl font-light tracking-tight mb-6 text-balance drop-shadow-2xl leading-tight ${isPreview && onUpdateRegistry ? 'cursor-text' : ''}`}
                     style={{ 
-                      color: themeColors.text,
+                      color: '#ffffff',
+                      textShadow: '0 2px 20px rgba(0, 0, 0, 0.3), 0 0 40px rgba(0, 0, 0, 0.2)',
                       ...getFontStyle('title')
                     }}
                   >
@@ -281,7 +282,7 @@ const PublicRegistry = ({
                 </div>
               )}
               {editingField === 'subtitle' ? (
-                <div className="relative mb-8">
+                <div className="relative">
                   <input
                     type="text"
                     value={editValue}
@@ -303,7 +304,7 @@ const PublicRegistry = ({
                         setEditingField(null);
                       }
                     }}
-                    className="text-body-lg font-light text-center w-full bg-white/90 backdrop-blur-sm px-4 py-2 rounded-lg border-2 border-white/50 focus:outline-none focus:ring-2 focus:ring-white/50 drop-shadow-md"
+                    className="text-lg md:text-xl font-light text-center w-full bg-white/95 backdrop-blur-md px-5 py-3 rounded-lg border-2 border-white/60 focus:outline-none focus:ring-2 focus:ring-white/60 drop-shadow-lg max-w-2xl mx-auto"
                     style={{ 
                       color: themeColors.textLight,
                       ...getFontStyle('subtitle')
@@ -312,7 +313,7 @@ const PublicRegistry = ({
                   />
                 </div>
               ) : (
-                <div className="group relative mb-8">
+                <div className="group relative">
                   {registry.subtitle ? (
                     <p 
                       onClick={() => {
@@ -321,15 +322,16 @@ const PublicRegistry = ({
                           setEditValue(registry.subtitle || '');
                         }
                       }}
-                      className={`text-body-lg font-light mb-8 drop-shadow-md ${isPreview && onUpdateRegistry ? 'cursor-text' : ''}`}
+                      className={`text-lg md:text-xl font-light drop-shadow-lg leading-relaxed max-w-2xl mx-auto ${isPreview && onUpdateRegistry ? 'cursor-text' : ''}`}
                       style={{ 
-                        color: themeColors.textLight,
+                        color: '#ffffff',
+                        textShadow: '0 1px 10px rgba(0, 0, 0, 0.3), 0 0 20px rgba(0, 0, 0, 0.15)',
                         ...getFontStyle('subtitle')
                       }}
                     >
                       {registry.subtitle}
                     </p>
-                  ) : (
+                  ) : isPreview ? (
                     <p 
                       onClick={() => {
                         if (isPreview && onUpdateRegistry) {
@@ -337,15 +339,16 @@ const PublicRegistry = ({
                           setEditValue(registry.subtitle || '');
                         }
                       }}
-                      className={`text-body-lg font-light mb-8 drop-shadow-md opacity-50 ${isPreview && onUpdateRegistry ? 'cursor-text' : ''}`}
+                      className={`text-lg md:text-xl font-light drop-shadow-lg leading-relaxed max-w-2xl mx-auto opacity-70 ${isPreview && onUpdateRegistry ? 'cursor-text' : ''}`}
                       style={{ 
-                        color: themeColors.textLight,
+                        color: '#ffffff',
+                        textShadow: '0 1px 10px rgba(0, 0, 0, 0.3), 0 0 20px rgba(0, 0, 0, 0.15)',
                         ...getFontStyle('subtitle')
                       }}
                     >
                       Add a subtitle to describe your event
                     </p>
-                  )}
+                  ) : null}
                   {isPreview && onUpdateRegistry && (
                     <>
                       <button
@@ -386,9 +389,9 @@ const PublicRegistry = ({
           className="border-b transition-colors duration-500"
           style={{ borderColor: themeColors.border }}
         >
-          <div className="max-w-6xl mx-auto px-6 lg:px-8 py-16 md:py-24 text-center">
+          <div className="max-w-6xl mx-auto px-6 lg:px-8 py-20 md:py-32 text-center">
             {editingField === 'title' ? (
-              <div className="relative mb-4">
+              <div className="relative mb-6">
                 <input
                   type="text"
                   value={editValue}
@@ -410,17 +413,18 @@ const PublicRegistry = ({
                       setEditingField(null);
                     }
                   }}
-                  className="text-display-2 md:text-display-1 font-light tracking-tight text-center w-full px-4 py-2 rounded-lg border-2 focus:outline-none focus:ring-2"
+                  className="text-4xl md:text-6xl lg:text-7xl font-light tracking-tight text-center w-full px-6 py-4 rounded-xl border-2 focus:outline-none focus:ring-2 max-w-4xl mx-auto"
                   style={{ 
                     color: themeColors.text,
                     borderColor: themeColors.border,
                     backgroundColor: themeColors.surface,
+                    ...getFontStyle('title')
                   }}
                   autoFocus
                 />
               </div>
             ) : (
-              <div className="group relative mb-4">
+              <div className="group relative mb-6">
                 <h1 
                   onClick={() => {
                     if (isPreview && onUpdateRegistry) {
@@ -428,7 +432,7 @@ const PublicRegistry = ({
                       setEditValue(registry.title || '');
                     }
                   }}
-                  className={`text-display-2 md:text-display-1 font-light tracking-tight mb-4 text-balance ${isPreview && onUpdateRegistry ? 'cursor-text' : ''}`}
+                  className={`text-4xl md:text-6xl lg:text-7xl font-light tracking-tight mb-6 text-balance leading-tight ${isPreview && onUpdateRegistry ? 'cursor-text' : ''}`}
                   style={{ 
                     color: themeColors.text,
                     ...getFontStyle('title')
@@ -468,7 +472,7 @@ const PublicRegistry = ({
               </div>
             )}
             {editingField === 'subtitle' ? (
-              <div className="relative mb-8">
+              <div className="relative">
                 <input
                   type="text"
                   value={editValue}
@@ -490,7 +494,7 @@ const PublicRegistry = ({
                       setEditingField(null);
                     }
                   }}
-                  className="text-body-lg font-light text-center w-full px-4 py-2 rounded-lg border-2 focus:outline-none focus:ring-2"
+                  className="text-lg md:text-xl font-light text-center w-full px-5 py-3 rounded-lg border-2 focus:outline-none focus:ring-2 max-w-2xl mx-auto"
                   style={{ 
                     color: themeColors.textLight,
                     borderColor: themeColors.border,
@@ -501,7 +505,7 @@ const PublicRegistry = ({
                 />
               </div>
             ) : (
-              <div className="group relative mb-8">
+              <div className="group relative">
                 {registry.subtitle ? (
                   <p 
                     onClick={() => {
@@ -510,15 +514,15 @@ const PublicRegistry = ({
                         setEditValue(registry.subtitle || '');
                       }
                     }}
-                    className={`text-body-lg font-light mb-8 ${isPreview && onUpdateRegistry ? 'cursor-text' : ''}`}
+                    className={`text-lg md:text-xl font-light leading-relaxed max-w-2xl mx-auto ${isPreview && onUpdateRegistry ? 'cursor-text' : ''}`}
                     style={{ 
                       color: themeColors.textLight,
-                      fontFamily: getFontFamily('subtitle')
+                      ...getFontStyle('subtitle')
                     }}
                   >
                     {registry.subtitle}
                   </p>
-                ) : (
+                ) : isPreview ? (
                   <p 
                     onClick={() => {
                       if (isPreview && onUpdateRegistry) {
@@ -526,15 +530,15 @@ const PublicRegistry = ({
                         setEditValue(registry.subtitle || '');
                       }
                     }}
-                    className={`text-body-lg font-light mb-8 opacity-50 ${isPreview && onUpdateRegistry ? 'cursor-text' : ''}`}
+                    className={`text-lg md:text-xl font-light leading-relaxed max-w-2xl mx-auto opacity-50 ${isPreview && onUpdateRegistry ? 'cursor-text' : ''}`}
                     style={{ 
                       color: themeColors.textLight,
-                      fontFamily: getFontFamily('subtitle')
+                      ...getFontStyle('subtitle')
                     }}
                   >
                     Add a subtitle to describe your event
                   </p>
-                )}
+                ) : null}
                 {isPreview && onUpdateRegistry && (
                   <>
                     <button
@@ -610,7 +614,7 @@ const PublicRegistry = ({
                   >
                     {registry.description}
                   </p>
-                ) : (
+                ) : isPreview ? (
                   <p 
                     onClick={() => {
                       if (isPreview && onUpdateRegistry) {
@@ -626,7 +630,7 @@ const PublicRegistry = ({
                   >
                     Tell your guests about your event and what makes it special...
                   </p>
-                )}
+                ) : null}
                 {isPreview && onUpdateRegistry && (
                   <>
                     <button
@@ -663,8 +667,8 @@ const PublicRegistry = ({
       )}
       
       {/* Description below hero image */}
-      {registry.hero_image_url && (
-        <div className="max-w-4xl mx-auto px-6 lg:px-8 py-12 text-center">
+      {registry.hero_image_url && (isPreview || registry.description) && (
+        <div className="max-w-4xl mx-auto px-6 lg:px-8 py-16 text-center">
           {editingField === 'description' ? (
             <div className="relative">
               <textarea
@@ -710,7 +714,7 @@ const PublicRegistry = ({
                 >
                   {registry.description}
                 </p>
-              ) : (
+              ) : isPreview ? (
                 <p 
                   onClick={() => {
                     if (isPreview && onUpdateRegistry) {
@@ -726,7 +730,7 @@ const PublicRegistry = ({
                 >
                   Tell your guests about your event and what makes it special...
                 </p>
-              )}
+              ) : null}
               {isPreview && onUpdateRegistry && (
                 <>
                   <button
@@ -761,99 +765,7 @@ const PublicRegistry = ({
         </div>
       )}
 
-      <div className="max-w-6xl mx-auto px-6 lg:px-8 py-16">
-        {/* Header/Goal Items - Display prominently at top */}
-        {headerItems.length > 0 && (
-          <div className="mb-12">
-            {headerItems.map((item) => (
-              <div
-                key={item.id}
-                className={`rounded-2xl border-2 p-6 transition-all duration-300 ${
-                  isPreview ? 'hover:shadow-lg' : ''
-                }`}
-                style={{
-                  backgroundColor: themeColors.surface,
-                  borderColor: themeColors.border,
-                }}
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <h3
-                      className="text-heading-2 font-semibold mb-1"
-                      style={{ color: themeColors.text }}
-                    >
-                      {item.title}
-                    </h3>
-                    {item.description && (
-                      <p
-                        className="text-body-sm"
-                        style={{ color: themeColors.textLight }}
-                      >
-                        {item.description}
-                      </p>
-                    )}
-                  </div>
-                  {!isPreview && (
-                    <button
-                      onClick={() => setSelectedItem(item)}
-                      className="px-6 py-2.5 rounded-lg font-medium transition-all duration-200 hover:scale-105"
-                      style={{
-                        backgroundColor: themeColors.accent,
-                        color: themeColors.background,
-                      }}
-                    >
-                      Contribute
-                    </button>
-                  )}
-                  {isPreview && onEditItem && (
-                    <button
-                      onClick={() => onEditItem(item)}
-                      className="px-6 py-2.5 rounded-lg font-medium transition-all duration-200 hover:scale-105 opacity-50 hover:opacity-100"
-                      style={{
-                        backgroundColor: themeColors.accent,
-                        color: themeColors.background,
-                      }}
-                    >
-                      Contribute
-                    </button>
-                  )}
-                </div>
-
-                {(item.item_type === 'cash' || item.item_type === 'partial' || item.item_type === 'charity') && (
-                  <div className="mt-4">
-                    <div className="flex items-baseline justify-between mb-3">
-                      <span
-                        className="text-heading-3 font-bold"
-                        style={{ color: themeColors.text }}
-                      >
-                        {formatCurrency(item.current_amount)}
-                      </span>
-                      <span
-                        className="text-body-sm"
-                        style={{ color: themeColors.textMuted }}
-                      >
-                        of {formatCurrency(item.price_amount)}
-                      </span>
-                    </div>
-                    <div
-                      className="w-full h-2 rounded-full overflow-hidden"
-                      style={{ backgroundColor: themeColors.borderLight }}
-                    >
-                      <div
-                        className="h-full rounded-full transition-all duration-700 ease-out"
-                        style={{
-                          width: `${calculateProgress(item.current_amount, item.price_amount)}%`,
-                          backgroundColor: themeColors.accent,
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
+      <div className="max-w-6xl mx-auto px-6 lg:px-8 py-20">
         {Object.keys(groupedItems).length > 0 ? (
           Object.entries(groupedItems).map(([category, categoryItems]) => (
           <section 
@@ -861,9 +773,9 @@ const PublicRegistry = ({
             className="last:mb-0"
             style={{ marginBottom: `${sectionSpacing * 4}px` }}
           >
-            <div className="mb-10">
+            <div className="mb-8">
               <h2 
-                className="text-caption tracking-widest uppercase mb-3"
+                className="text-sm font-semibold tracking-wide uppercase mb-4"
                 style={{ 
                   color: themeColors.textMuted,
                   ...getFontStyle('subtitle')
@@ -877,39 +789,239 @@ const PublicRegistry = ({
               />
             </div>
 
-            <div 
-              className="grid gap-6 lg:gap-8"
-              style={{
-                gridTemplateColumns: `repeat(${itemGridColumns}, minmax(0, 1fr))`
-              }}
-            >
-              {categoryItems.map((item, index) => {
+            {/* Check if category should display as wide (single fund item) */}
+            {(() => {
+              const shouldDisplayWide = categoryItems.length === 1 && isWideItem(categoryItems[0]);
+              
+              if (shouldDisplayWide) {
+                // Render single fund item as wide card
+                const item = categoryItems[0];
                 const isDragged = draggedItemId === item.id;
-                const isDragOver = dragOverIndex?.category === category && dragOverIndex?.index === index && draggedItemId !== item.id;
+                const isDragOver = dragOverIndex?.category === category && dragOverIndex?.index === 0 && draggedItemId !== item.id;
                 
                 return (
-                <div
-                  key={item.id}
-                  draggable={isPreview && onDragStart ? true : false}
-                  onDragStart={(e) => {
-                    if (isPreview && onDragStart) {
-                      onDragStart(e, item.id);
-                    }
+                  <div className="mb-8">
+                    <div
+                      key={item.id}
+                      draggable={isPreview && onDragStart ? true : false}
+                      onDragStart={(e) => {
+                        if (isPreview && onDragStart) {
+                          onDragStart(e, item.id);
+                        }
+                      }}
+                      onDragOver={(e) => {
+                        if (isPreview && onDragOver) {
+                          e.preventDefault();
+                          onDragOver(e, category, 0);
+                        }
+                      }}
+                      onDrop={(e) => {
+                        if (isPreview && onDrop) {
+                          e.preventDefault();
+                          onDrop(e, category, 0);
+                        }
+                      }}
+                      className={`group relative ${isPreview ? 'cursor-move' : ''} ${isDragged ? 'opacity-30 scale-95' : isDragOver ? 'scale-105' : ''} transition-all`}
+                    >
+                      {isPreview && onDragStart && (
+                        <div className="absolute -left-2 top-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <GripVertical 
+                            className="w-5 h-5" 
+                            style={{ color: themeColors.textMuted }}
+                            strokeWidth={1.5}
+                          />
+                        </div>
+                      )}
+                      {isPreview && (onEditItem || onDeleteItem) && (
+                        <div className="absolute right-4 top-4 z-10 flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {onEditItem && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onEditItem(item);
+                              }}
+                              className="p-1.5 rounded-full backdrop-blur-md shadow-lg"
+                              style={{ backgroundColor: `${themeColors.surfaceElevated}E6` }}
+                              title="Edit item"
+                            >
+                              <Edit2 className="w-4 h-4" style={{ color: themeColors.text }} strokeWidth={1.5} />
+                            </button>
+                          )}
+                          {onDeleteItem && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDeleteItem(item.id);
+                              }}
+                              className="p-1.5 rounded-full backdrop-blur-md shadow-lg"
+                              style={{ backgroundColor: `${themeColors.surfaceElevated}E6` }}
+                              title="Delete item"
+                            >
+                              <Trash2 className="w-4 h-4" style={{ color: '#dc2626' }} strokeWidth={1.5} />
+                            </button>
+                          )}
+                        </div>
+                      )}
+                      <button
+                        onClick={() => !item.is_fulfilled && setSelectedItem(item)}
+                        className="w-full text-left"
+                        disabled={item.is_fulfilled}
+                      >
+                        <div
+                          className={`rounded-2xl border-2 p-6 transition-all duration-300 ${
+                            isPreview ? 'hover:shadow-lg' : ''
+                          }`}
+                          style={{
+                            backgroundColor: themeColors.surface,
+                            borderColor: themeColors.border,
+                          }}
+                        >
+                          <div className="flex items-start justify-between mb-4">
+                            <div className="flex-1">
+                              <h3
+                                className="text-heading-2 font-semibold mb-1"
+                                style={{ color: themeColors.text }}
+                              >
+                                {item.title}
+                              </h3>
+                              {item.description && (
+                                <p
+                                  className="text-body-sm"
+                                  style={{ color: themeColors.textLight }}
+                                >
+                                  {item.description}
+                                </p>
+                              )}
+                            </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedItem(item);
+                              }}
+                              className="px-6 py-2.5 rounded-lg font-medium transition-all duration-200 hover:scale-105"
+                              style={{
+                                backgroundColor: themeColors.accent,
+                                color: themeColors.background,
+                              }}
+                            >
+                              Contribute
+                            </button>
+                          </div>
+
+                          <div className="mt-4">
+                            <div className="flex items-baseline justify-between mb-3">
+                              <span
+                                className="text-heading-3 font-bold"
+                                style={{ color: themeColors.text }}
+                              >
+                                {formatCurrency(item.current_amount)}
+                              </span>
+                              <span
+                                className="text-body-sm"
+                                style={{ color: themeColors.textMuted }}
+                              >
+                                of {formatCurrency(item.price_amount)}
+                              </span>
+                            </div>
+                            <div
+                              className="w-full h-2 rounded-full overflow-hidden"
+                              style={{ backgroundColor: themeColors.borderLight }}
+                            >
+                              <div
+                                className="h-full rounded-full transition-all duration-700 ease-out"
+                                style={{
+                                  width: `${calculateProgress(item.current_amount, item.price_amount)}%`,
+                                  backgroundColor: themeColors.accent,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+              
+              // Render multiple items in grid
+              return (
+                <div 
+                  className="grid gap-6 lg:gap-8 mb-8"
+                  style={{
+                    gridTemplateColumns: `repeat(${itemGridColumns}, minmax(0, 1fr))`
                   }}
-                  onDragOver={(e) => {
-                    if (isPreview && onDragOver) {
-                      e.preventDefault();
-                      onDragOver(e, category, index);
-                    }
-                  }}
-                  onDrop={(e) => {
-                    if (isPreview && onDrop) {
-                      e.preventDefault();
-                      onDrop(e, category, index);
-                    }
-                  }}
-                  className={`group relative flex flex-col ${isPreview ? 'cursor-move' : ''} ${isDragged ? 'opacity-30 scale-95' : isDragOver ? 'scale-105' : ''} transition-all`}
                 >
+                  {categoryItems.length === 0 && isPreview && onAddItem ? (
+                    // Show add button when section is empty
+                    <div className="group relative flex flex-col">
+                      <button
+                        onClick={() => onAddItem(category)}
+                        className="w-full text-left hover-lift"
+                      >
+                        <div 
+                          className="aspect-[4/5] mb-4 overflow-hidden relative rounded-2xl shadow-soft hover:shadow-medium transition-all duration-500 border-2 border-dashed flex items-center justify-center"
+                          style={{ 
+                            backgroundColor: themeColors.surface,
+                            borderColor: themeColors.border,
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = themeColors.accent;
+                            e.currentTarget.style.backgroundColor = themeColors.surfaceElevated;
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = themeColors.border;
+                            e.currentTarget.style.backgroundColor = themeColors.surface;
+                          }}
+                        >
+                          <div className="flex flex-col items-center justify-center space-y-2">
+                            <Plus 
+                              className="w-8 h-8" 
+                              strokeWidth={1.5}
+                              style={{ color: themeColors.textMuted }}
+                            />
+                            <span 
+                              className="text-body-sm font-medium"
+                              style={{ color: themeColors.textMuted }}
+                            >
+                              Add Item
+                            </span>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="h-4"></div>
+                          <div className="h-4"></div>
+                        </div>
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                  {categoryItems.map((item, index) => {
+                    const isDragged = draggedItemId === item.id;
+                    const isDragOver = dragOverIndex?.category === category && dragOverIndex?.index === index && draggedItemId !== item.id;
+                    
+                    return (
+                      <div
+                        key={item.id}
+                        draggable={isPreview && onDragStart ? true : false}
+                        onDragStart={(e) => {
+                          if (isPreview && onDragStart) {
+                            onDragStart(e, item.id);
+                          }
+                        }}
+                        onDragOver={(e) => {
+                          if (isPreview && onDragOver) {
+                            e.preventDefault();
+                            onDragOver(e, category, index);
+                          }
+                        }}
+                        onDrop={(e) => {
+                          if (isPreview && onDrop) {
+                            e.preventDefault();
+                            onDrop(e, category, index);
+                          }
+                        }}
+                        className={`group relative flex flex-col ${isPreview ? 'cursor-move' : ''} ${isDragged ? 'opacity-30 scale-95' : isDragOver ? 'scale-105' : ''} transition-all`}
+                      >
                   {isPreview && onDragStart && (
                     <div className="absolute -left-2 top-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
                       <GripVertical 
@@ -938,9 +1050,7 @@ const PublicRegistry = ({
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (confirm(`Delete "${item.title}"?`)) {
-                              onDeleteItem(item.id);
-                            }
+                            onDeleteItem(item.id);
                           }}
                           className="p-1.5 rounded-full backdrop-blur-md shadow-lg"
                           style={{ backgroundColor: `${themeColors.surfaceElevated}E6` }}
@@ -952,9 +1062,9 @@ const PublicRegistry = ({
                     </div>
                   )}
                   <button
-                    onClick={() => !isPreview && !item.is_fulfilled && setSelectedItem(item)}
+                    onClick={() => !item.is_fulfilled && setSelectedItem(item)}
                     className="w-full text-left hover-lift"
-                    disabled={isPreview || item.is_fulfilled}
+                    disabled={item.is_fulfilled}
                   >
                   <div 
                     className="aspect-[4/5] mb-4 overflow-hidden relative rounded-2xl shadow-soft hover:shadow-medium transition-all duration-500"
@@ -1097,79 +1207,60 @@ const PublicRegistry = ({
                         </span>
                       </div>
                     )}
-                  </div>
+                      </div>
+                    </button>
+                    </div>
+                  );
+                  })}
+            
+                  {/* Add Item Button - square card like items */}
+            {isPreview && onAddItem && (
+                    <div className="group relative flex flex-col">
+                <button
+                  onClick={() => onAddItem(category)}
+                        className="w-full text-left hover-lift"
+                      >
+                        <div 
+                          className="aspect-[4/5] mb-4 overflow-hidden relative rounded-2xl shadow-soft hover:shadow-medium transition-all duration-500 border-2 border-dashed flex items-center justify-center"
+                  style={{
+                            backgroundColor: themeColors.surface,
+                    borderColor: themeColors.border,
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = themeColors.accent;
+                    e.currentTarget.style.backgroundColor = themeColors.surfaceElevated;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = themeColors.border;
+                            e.currentTarget.style.backgroundColor = themeColors.surface;
+                  }}
+                >
+                          <div className="flex flex-col items-center justify-center space-y-2">
+                            <Plus 
+                              className="w-8 h-8" 
+                              strokeWidth={1.5}
+                              style={{ color: themeColors.textMuted }}
+                            />
+                            <span 
+                              className="text-body-sm font-medium"
+                              style={{ color: themeColors.textMuted }}
+                            >
+                              Add Item
+                            </span>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="h-4"></div>
+                          <div className="h-4"></div>
+                        </div>
                 </button>
+              </div>
+            )}
+                    </>
+                  )}
                 </div>
               );
-              })}
-              
-              {/* Add Item Card - styled like other items */}
-              {isPreview && onAddItem && (
-                <div className="group/add-item relative flex flex-col">
-                  <button
-                    onClick={() => onAddItem(category)}
-                    className="w-full text-left hover-lift"
-                  >
-                  <div 
-                    className="aspect-[4/5] mb-4 overflow-hidden relative rounded-2xl shadow-soft hover:shadow-medium transition-all duration-500 border-2 border-dashed"
-                    style={{ 
-                      backgroundColor: themeColors.surface,
-                      borderColor: themeColors.border
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = themeColors.accent;
-                      e.currentTarget.style.borderStyle = 'solid';
-                      e.currentTarget.style.backgroundColor = themeColors.surfaceElevated;
-                      const iconContainer = e.currentTarget.querySelector('.add-item-icon-container') as HTMLElement;
-                      if (iconContainer) {
-                        iconContainer.style.transform = 'scale(1.1)';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = themeColors.border;
-                      e.currentTarget.style.borderStyle = 'dashed';
-                      e.currentTarget.style.backgroundColor = themeColors.surface;
-                      const iconContainer = e.currentTarget.querySelector('.add-item-icon-container') as HTMLElement;
-                      if (iconContainer) {
-                        iconContainer.style.transform = 'scale(1)';
-                      }
-                    }}
-                  >
-                    <div 
-                      className="w-full h-full flex flex-col items-center justify-center"
-                      style={{ backgroundColor: 'transparent' }}
-                    >
-                      <div 
-                        className="add-item-icon-container w-14 h-14 rounded-full flex items-center justify-center mb-3 transition-transform duration-300"
-                        style={{ 
-                          backgroundColor: themeColors.accent + '15',
-                          border: `2px dashed ${themeColors.accent}`
-                        }}
-                      >
-                        <Plus 
-                          className="w-7 h-7" 
-                          strokeWidth={2.5}
-                          style={{ color: themeColors.accent }}
-                        />
-                      </div>
-                      <span 
-                        className="text-sm font-medium"
-                        style={{ color: themeColors.textMuted }}
-                      >
-                        Add Item
-                      </span>
-                    </div>
-                  </div>
-                  
-                  {/* Spacer to match item card height */}
-                  <div className="space-y-2 opacity-0 pointer-events-none">
-                    <div className="h-4"></div>
-                    <div className="h-3"></div>
-                  </div>
-                  </button>
-                </div>
-              )}
-            </div>
+            })()}
           </section>
         ))
         ) : (
@@ -1268,7 +1359,7 @@ const PublicRegistry = ({
         </div>
       </footer>
 
-      {selectedItem && !isPreview && (
+      {selectedItem && (
         <ContributionModal
           item={selectedItem}
           registry={registry}

@@ -60,11 +60,11 @@ function AppContent() {
   // Update document title based on route
   useEffect(() => {
     if (location.pathname === '/') {
-      document.title = 'Giftly - Universal Gift Registry';
+      document.title = 'Giftendo - Universal Gift Registry';
     } else if (location.pathname === '/builder') {
-      document.title = 'Create Registry - Giftly';
+      document.title = 'Create Registry - Giftendo';
     } else if (location.pathname === '/canvas') {
-      document.title = 'Edit Registry - Giftly';
+      document.title = 'Edit Registry - Giftendo';
     }
   }, [location.pathname]);
 

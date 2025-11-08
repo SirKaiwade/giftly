@@ -235,13 +235,10 @@ export const ITEM_TYPES: {
 ];
 
 export const CATEGORIES = [
-  'header',
   'honeymoon',
   'home',
   'baby',
   'kitchen',
-  'experience',
   'charity',
   'general',
-  'other',
 ];

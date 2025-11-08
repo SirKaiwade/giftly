@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useRegistry } from '../../contexts/RegistryContext';
-import { Plus, Edit2, Trash2, ExternalLink, DollarSign, Package, Gift, Sparkles, Clock, Heart } from 'lucide-react';
-import { ITEM_TYPES, CATEGORIES } from '../../types';
+import { Plus, Edit2, Trash2, DollarSign, Package, Gift, Sparkles, Clock, Heart } from 'lucide-react';
+import { ITEM_TYPES, CATEGORIES, ItemType } from '../../types';
 import { RegistryItem } from '../../lib/supabase';
 import { formatCurrency, calculateProgress } from '../../utils/helpers';
 
@@ -9,19 +9,32 @@ const ItemBuilder = () => {
   const { currentItems, addItem, updateItem, removeItem } = useRegistry();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<RegistryItem | null>(null);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    title: string;
+    description: string;
+    image_url: string;
+    item_type: ItemType;
+    price_amount: number;
+    external_link: string;
+    category: string;
+  }>({
     title: '',
     description: '',
     image_url: '',
-    item_type: 'product' as const,
+    item_type: 'product',
     price_amount: 0,
     external_link: '',
     category: 'general',
   });
+  const [customCategory, setCustomCategory] = useState('');
+  const [isCustomCategory, setIsCustomCategory] = useState(false);
 
   const handleOpenModal = (item?: RegistryItem) => {
     if (item) {
       setEditingItem(item);
+      const isCustom = !CATEGORIES.includes(item.category);
+      setIsCustomCategory(isCustom);
+      setCustomCategory(isCustom ? item.category : '');
       setFormData({
         title: item.title,
         description: item.description,
@@ -29,10 +42,12 @@ const ItemBuilder = () => {
         item_type: item.item_type,
         price_amount: item.price_amount / 100,
         external_link: item.external_link,
-        category: item.category,
+        category: isCustom ? 'custom' : item.category,
       });
     } else {
       setEditingItem(null);
+      setIsCustomCategory(false);
+      setCustomCategory('');
       setFormData({
         title: '',
         description: '',
@@ -47,8 +62,10 @@ const ItemBuilder = () => {
   };
 
   const handleSaveItem = () => {
+    const finalCategory = isCustomCategory && customCategory.trim() ? customCategory.trim().toLowerCase() : formData.category;
     const itemData = {
       ...formData,
+      category: finalCategory,
       price_amount: Math.round(formData.price_amount * 100),
     };
 
@@ -249,7 +266,17 @@ const ItemBuilder = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
                 <select
                   value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === 'custom') {
+                      setIsCustomCategory(true);
+                      setFormData({ ...formData, category: 'custom' });
+                    } else {
+                      setIsCustomCategory(false);
+                      setCustomCategory('');
+                      setFormData({ ...formData, category: value });
+                    }
+                  }}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   {CATEGORIES.map((cat) => (
@@ -257,7 +284,17 @@ const ItemBuilder = () => {
                       {cat.charAt(0).toUpperCase() + cat.slice(1)}
                     </option>
                   ))}
+                  <option value="custom">Custom</option>
                 </select>
+                {isCustomCategory && (
+                  <input
+                    type="text"
+                    value={customCategory}
+                    onChange={(e) => setCustomCategory(e.target.value)}
+                    placeholder="Enter custom category name"
+                    className="w-full mt-2 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                )}
               </div>
 
               {/* Conditional Price/Goal Fields */}

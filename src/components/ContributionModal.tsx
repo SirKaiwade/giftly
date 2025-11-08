@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { Registry, RegistryItem } from '../lib/supabase';
 import { formatCurrency } from '../utils/helpers';
+import { createCheckoutSession, redirectToCheckout } from '../lib/stripe';
 
 type ContributionModalProps = {
   item: RegistryItem;
@@ -28,13 +29,47 @@ const ContributionModal = ({ item, registry, onClose }: ContributionModalProps) 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate amount
+    const amountInCents = Math.round(parseFloat(amount) * 100);
+    if (isNaN(amountInCents) || amountInCents < 50) {
+      alert('Please enter a valid amount (minimum $0.50)');
+      return;
+    }
+
     setIsProcessing(true);
 
-    setTimeout(() => {
-      alert('Payment integration placeholder - Stripe would process this contribution');
+    try {
+      // Build success and cancel URLs
+      const baseUrl = window.location.origin;
+      const registrySlug = registry.slug;
+      const successUrl = `${baseUrl}/${registrySlug}?payment=success`;
+      const cancelUrl = `${baseUrl}/${registrySlug}?payment=cancelled`;
+
+      // Create checkout session
+      const session = await createCheckoutSession({
+        itemId: item.id,
+        registryId: registry.id,
+        amount: amountInCents,
+        contributorName: contributorName,
+        contributorEmail: contributorEmail || undefined,
+        message: message,
+        isPublic: isPublic,
+        successUrl,
+        cancelUrl,
+      });
+
+      if (session && session.url) {
+        // Redirect to Stripe Checkout
+        redirectToCheckout(session.url);
+      } else {
+        throw new Error('Failed to create checkout session');
+      }
+    } catch (error: any) {
+      console.error('Payment error:', error);
+      alert(error.message || 'Failed to process payment. Please try again.');
       setIsProcessing(false);
-      onClose();
-    }, 1500);
+    }
   };
 
   return (
