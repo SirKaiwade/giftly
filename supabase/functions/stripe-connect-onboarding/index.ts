@@ -6,16 +6,12 @@ const stripe = await import('https://esm.sh/stripe@14.21.0?target=deno');
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { 
-      status: 204,
-      headers: corsHeaders 
-    });
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
@@ -80,11 +76,7 @@ serve(async (req) => {
             status: account.charges_enabled ? 'active' : 'pending',
           }),
           {
-            headers: { 
-              ...corsHeaders, 
-              'Content-Type': 'application/json',
-              'Access-Control-Allow-Origin': '*',
-            },
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 200,
           }
         );
