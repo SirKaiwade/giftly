@@ -41,6 +41,7 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
   const [user, setUser] = useState<User | null>(null);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
+  const [activeSections, setActiveSections] = useState<Set<string>>(new Set());
   const [showEventEditor, setShowEventEditor] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
   const [registries, setRegistries] = useState<Array<{ id: string; title: string; event_type: string }>>([]);
@@ -527,6 +528,13 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
         newExpanded[cat] = expandedSections[cat];
       }
     });
+    
+    // Initialize activeSections from existing categories
+    setActiveSections(prev => {
+      const newSet = new Set(prev);
+      categories.forEach(cat => newSet.add(cat));
+      return newSet;
+    });
     setExpandedSections(newExpanded);
   }, [currentItems.length]);
 
@@ -654,59 +662,43 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
 
   const handleAddSection = (category: string) => {
     // If section already exists, just select it
-    if (categories.includes(category)) {
+    if (categories.includes(category) || activeSections.has(category)) {
       setSelectedSection(category);
       setExpandedSections(prev => ({ ...prev, [category]: true }));
       return;
     }
     
-    // Create a placeholder item to make the section appear
-    // This is needed because sections only exist when they have items
-    const newItem: RegistryItem = {
-      id: crypto.randomUUID(),
-      registry_id: selectedRegistryId || '',
-      title: '',
-      description: '',
-      image_url: '',
-      item_type: 'product',
-      price_amount: 0,
-      current_amount: 0,
-      external_link: '',
-      category: category,
-      priority: currentItems.length,
-      is_fulfilled: false,
-      created_at: new Date().toISOString(),
-    };
-    
-    addItem(newItem);
+    // Add section to active sections (so it appears even without items)
+    setActiveSections(prev => new Set([...prev, category]));
     
     // Select the new section and expand it
     setSelectedSection(category);
     setExpandedSections(prev => ({ ...prev, [category]: true }));
-    
-    // Save to database if we have a registry
-    if (selectedRegistryId && user) {
-      supabase
-        .from('registry_items')
-        .insert({
-          ...newItem,
-          registry_id: selectedRegistryId,
-        })
-        .then(({ error }) => {
-          if (error) {
-            console.error('Error creating section item:', error);
-          }
-        });
-    }
   };
 
   const handleRemoveSection = (category: string) => {
     const itemsInSection = groupedItems[category] || [];
-    if (itemsInSection.length === 0) return;
+    const itemCount = itemsInSection.length;
     
-    if (confirm(`Remove "${CATEGORY_LABELS[category] || category}" section and all ${itemsInSection.length} item(s)?`)) {
+    if (itemCount === 0) {
+      // Just remove from active sections if empty
+      setActiveSections(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(category);
+        return newSet;
+      });
+      return;
+    }
+    
+    if (confirm(`Remove "${CATEGORY_LABELS[category] || category}" section and all ${itemCount} item(s)?`)) {
       itemsInSection.forEach(item => {
         removeItem(item.id);
+      });
+      // Remove from active sections after removing items
+      setActiveSections(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(category);
+        return newSet;
       });
     }
   };
@@ -1769,6 +1761,7 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
               onDrop={handleDrop}
               draggedItemId={draggedItem}
               dragOverIndex={dragOverIndex}
+              activeSections={activeSections}
             />
               </div>
             </div>
@@ -1815,6 +1808,7 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
               sectionSpacing={sectionSpacing}
               itemGridColumns={itemGridColumns}
               hiddenSections={hiddenSections}
+              activeSections={activeSections}
               onUpdateRegistry={(updates) => {
                 updateRegistry(updates);
                 if (selectedRegistryId && user) {

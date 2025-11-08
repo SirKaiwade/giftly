@@ -64,6 +64,8 @@ export type RegistryItem = {
   title: string;
   description: string;
   image_url: string;
+  image_position?: string; // CSS object-position value (e.g., "center", "50% 30%")
+  image_scale?: number; // Scale factor (e.g., 1.5 for 150%)
   item_type: 'cash' | 'product' | 'service' | 'experience' | 'charity';
   price_amount: number;
   current_amount: number;

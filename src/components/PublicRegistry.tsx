@@ -27,6 +27,7 @@ type PublicRegistryProps = {
   sectionSpacing?: number; // Tailwind spacing units
   itemGridColumns?: number; // 1-4
   hiddenSections?: Set<string>;
+  activeSections?: Set<string>; // Sections that should be shown even if empty
   onUpdateRegistry?: (updates: Partial<Registry>) => void;
   onEditItem?: (item: RegistryItem) => void;
   onAddItem?: (category: string) => void;
@@ -48,6 +49,7 @@ const PublicRegistry = ({
   sectionSpacing = 6,
   itemGridColumns = 3,
   hiddenSections = new Set(),
+  activeSections = new Set(),
   onUpdateRegistry,
   onEditItem,
   onAddItem,
@@ -76,6 +78,13 @@ const PublicRegistry = ({
     acc[item.category].push(item);
     return acc;
   }, {} as Record<string, RegistryItem[]>);
+
+  // Add empty sections from activeSections
+  activeSections.forEach(category => {
+    if (!hiddenSections.has(category) && !groupedItems[category]) {
+      groupedItems[category] = [];
+    }
+  });
 
   const categoryLabels: Record<string, string> = {
     honeymoon: 'Honeymoon Fund',
@@ -682,7 +691,7 @@ const PublicRegistry = ({
                       onDrop(e, category, index);
                     }
                   }}
-                  className={`group relative ${isPreview ? 'cursor-move' : ''} ${isDragged ? 'opacity-30 scale-95' : isDragOver ? 'scale-105' : ''} transition-all`}
+                  className={`group relative flex flex-col ${isPreview ? 'cursor-move' : ''} ${isDragged ? 'opacity-30 scale-95' : isDragOver ? 'scale-105' : ''} transition-all`}
                 >
                   {isPreview && onDragStart && (
                     <div className="absolute -left-2 top-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -694,7 +703,7 @@ const PublicRegistry = ({
                     </div>
                   )}
                   {isPreview && (onEditItem || onDeleteItem) && (
-                    <div className="absolute -right-2 top-4 z-10 flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute right-2 top-2 z-10 flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       {onEditItem && (
                         <button
                           onClick={(e) => {
@@ -739,6 +748,10 @@ const PublicRegistry = ({
                         src={item.image_url}
                         alt={item.title}
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+                        style={{
+                          objectPosition: item.image_position || 'center',
+                          transform: item.image_scale ? `scale(${item.image_scale})` : undefined,
+                        }}
                       />
                     )}
                     {!item.image_url && (
@@ -752,21 +765,6 @@ const PublicRegistry = ({
                         >
                           🎁
                         </span>
-                      </div>
-                    )}
-                    {!item.is_fulfilled && (
-                      <div 
-                        className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 backdrop-blur-md shadow-lg"
-                        style={{ 
-                          backgroundColor: `${themeColors.surfaceElevated}E6`,
-                          borderColor: themeColors.border,
-                        }}
-                      >
-                        <ArrowUpRight 
-                          className="w-5 h-5" 
-                          strokeWidth={2}
-                          style={{ color: themeColors.accent }}
-                        />
                       </div>
                     )}
                     {item.is_fulfilled && (
@@ -854,30 +852,74 @@ const PublicRegistry = ({
                 </div>
               );
               })}
+              
+              {/* Add Item Card - styled like other items */}
+              {isPreview && onAddItem && (
+                <div className="group/add-item relative flex flex-col">
+                  <button
+                    onClick={() => onAddItem(category)}
+                    className="w-full text-left hover-lift"
+                  >
+                  <div 
+                    className="aspect-[4/5] mb-4 overflow-hidden relative rounded-2xl shadow-soft hover:shadow-medium transition-all duration-500 border-2 border-dashed"
+                    style={{ 
+                      backgroundColor: themeColors.surface,
+                      borderColor: themeColors.border
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = themeColors.accent;
+                      e.currentTarget.style.borderStyle = 'solid';
+                      e.currentTarget.style.backgroundColor = themeColors.surfaceElevated;
+                      const iconContainer = e.currentTarget.querySelector('.add-item-icon-container') as HTMLElement;
+                      if (iconContainer) {
+                        iconContainer.style.transform = 'scale(1.1)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = themeColors.border;
+                      e.currentTarget.style.borderStyle = 'dashed';
+                      e.currentTarget.style.backgroundColor = themeColors.surface;
+                      const iconContainer = e.currentTarget.querySelector('.add-item-icon-container') as HTMLElement;
+                      if (iconContainer) {
+                        iconContainer.style.transform = 'scale(1)';
+                      }
+                    }}
+                  >
+                    <div 
+                      className="w-full h-full flex flex-col items-center justify-center"
+                      style={{ backgroundColor: 'transparent' }}
+                    >
+                      <div 
+                        className="add-item-icon-container w-14 h-14 rounded-full flex items-center justify-center mb-3 transition-transform duration-300"
+                        style={{ 
+                          backgroundColor: themeColors.accent + '15',
+                          border: `2px dashed ${themeColors.accent}`
+                        }}
+                      >
+                        <Plus 
+                          className="w-7 h-7" 
+                          strokeWidth={2.5}
+                          style={{ color: themeColors.accent }}
+                        />
+                      </div>
+                      <span 
+                        className="text-sm font-medium"
+                        style={{ color: themeColors.textMuted }}
+                      >
+                        Add Item
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Spacer to match item card height */}
+                  <div className="space-y-2 opacity-0 pointer-events-none">
+                    <div className="h-4"></div>
+                    <div className="h-3"></div>
+                  </div>
+                  </button>
+                </div>
+              )}
             </div>
-            {isPreview && onAddItem && (
-              <button
-                onClick={() => onAddItem(category)}
-                className="mt-6 w-full border-2 border-dashed rounded-2xl p-8 text-center hover:border-solid transition-all group"
-                style={{
-                  borderColor: themeColors.border,
-                  backgroundColor: themeColors.surface,
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = themeColors.accent;
-                  e.currentTarget.style.backgroundColor = themeColors.surfaceElevated;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = themeColors.border;
-                  e.currentTarget.style.backgroundColor = themeColors.surface;
-                }}
-              >
-                <Plus className="w-6 h-6 mx-auto mb-2" style={{ color: themeColors.textMuted }} strokeWidth={1.5} />
-                <span className="text-sm font-medium" style={{ color: themeColors.textMuted }}>
-                  Add Item
-                </span>
-              </button>
-            )}
           </section>
         ))
         ) : (
