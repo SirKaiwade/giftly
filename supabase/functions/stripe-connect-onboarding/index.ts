@@ -11,14 +11,9 @@ const corsHeaders = {
 serve(async (req) => {
   // Handle CORS preflight requests - MUST be first and simple, no dependencies
   if (req.method === 'OPTIONS') {
-    return new Response(null, { 
-      status: 204,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-        'Access-Control-Max-Age': '86400',
-      }
+    return new Response('ok', { 
+      status: 200,
+      headers: corsHeaders
     });
   }
 
