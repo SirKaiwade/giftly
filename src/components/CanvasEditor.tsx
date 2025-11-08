@@ -356,7 +356,16 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
             .single();
 
           console.log('[CanvasEditor] Registry data loaded:', { hasData: !!data, error });
-            if (!error && data) {
+          if (!error && data) {
+            console.log('[CanvasEditor] Loaded theme:', data.theme);
+            console.log('[CanvasEditor] Loaded typography:', {
+              title_font_family: (data as any).title_font_family,
+              title_font_weight: (data as any).title_font_weight,
+              title_font_style: (data as any).title_font_style,
+              title_text_decoration: (data as any).title_text_decoration,
+              custom_theme_colors: (data as any).custom_theme_colors ? 'exists' : 'missing',
+            });
+            
             updateRegistry({
               id: data.id,
               slug: data.slug,
@@ -392,8 +401,10 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
                 const colors = typeof (data as any).custom_theme_colors === 'string' 
                   ? JSON.parse((data as any).custom_theme_colors)
                   : (data as any).custom_theme_colors;
+                console.log('[CanvasEditor] Loaded custom theme colors:', colors);
                 setCustomThemeColors(colors);
               } catch (e) {
+                console.error('[CanvasEditor] Error parsing custom theme colors:', e);
                 // Use default custom colors
                 const defaultCustom = THEMES.find(t => t.value === 'custom');
                 setCustomThemeColors(defaultCustom?.colors || null);
@@ -536,6 +547,19 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
           updateData.custom_theme_colors = null;
         }
 
+        // Log what we're about to save
+        console.log('[CanvasEditor] About to save typography fields:', {
+          title_font_weight: updateData.title_font_weight,
+          title_font_style: updateData.title_font_style,
+          title_text_decoration: updateData.title_text_decoration,
+          subtitle_font_weight: updateData.subtitle_font_weight,
+          subtitle_font_style: updateData.subtitle_font_style,
+          subtitle_text_decoration: updateData.subtitle_text_decoration,
+          body_font_weight: updateData.body_font_weight,
+          body_font_style: updateData.body_font_style,
+          body_text_decoration: updateData.body_text_decoration,
+        });
+
         // Save registry data
         const { error: registryError } = await supabase
           .from('registries')
@@ -544,8 +568,30 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
 
         if (registryError) {
           console.error('[CanvasEditor] Auto-save registry error:', registryError);
+          console.error('[CanvasEditor] Update data attempted:', updateData);
+          // Check if it's a column doesn't exist error
+          if (registryError.message?.includes('column') || registryError.message?.includes('does not exist')) {
+            console.error('[CanvasEditor] ⚠️ Database column missing! Please run migrations:', [
+              '20251107000005_add_custom_theme_colors.sql',
+              '20251107000006_add_typography_weight_style_decoration.sql'
+            ]);
+          }
         } else {
-          console.log('[CanvasEditor] Registry auto-saved successfully');
+          console.log('[CanvasEditor] Registry auto-saved successfully', { 
+            theme: updateData.theme,
+            hasCustomColors: !!updateData.custom_theme_colors,
+            typographyFields: {
+              titleWeight: updateData.title_font_weight,
+              titleStyle: updateData.title_font_style,
+              titleDecoration: updateData.title_text_decoration,
+              subtitleWeight: updateData.subtitle_font_weight,
+              subtitleStyle: updateData.subtitle_font_style,
+              subtitleDecoration: updateData.subtitle_text_decoration,
+              bodyWeight: updateData.body_font_weight,
+              bodyStyle: updateData.body_font_style,
+              bodyDecoration: updateData.body_text_decoration,
+            }
+          });
         }
 
         // Save items if they exist
@@ -1875,7 +1921,11 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
                           <div className="flex items-center space-x-2 mt-3">
                             <button
                               type="button"
-                              onClick={() => setTitleFontWeight(titleFontWeight === 'bold' ? 'normal' : 'bold')}
+                              onClick={() => {
+                                const newWeight = titleFontWeight === 'bold' ? 'normal' : 'bold';
+                                console.log('[CanvasEditor] Setting title font weight:', newWeight);
+                                setTitleFontWeight(newWeight);
+                              }}
                               className={`p-2 rounded-lg border transition-all ${
                                 titleFontWeight === 'bold'
                                   ? 'bg-neutral-900 text-white border-neutral-900'
@@ -1887,7 +1937,11 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
                             </button>
                             <button
                               type="button"
-                              onClick={() => setTitleFontStyle(titleFontStyle === 'italic' ? 'normal' : 'italic')}
+                              onClick={() => {
+                                const newStyle = titleFontStyle === 'italic' ? 'normal' : 'italic';
+                                console.log('[CanvasEditor] Setting title font style:', newStyle);
+                                setTitleFontStyle(newStyle);
+                              }}
                               className={`p-2 rounded-lg border transition-all ${
                                 titleFontStyle === 'italic'
                                   ? 'bg-neutral-900 text-white border-neutral-900'
@@ -1899,7 +1953,11 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
                             </button>
                             <button
                               type="button"
-                              onClick={() => setTitleTextDecoration(titleTextDecoration === 'underline' ? 'none' : 'underline')}
+                              onClick={() => {
+                                const newDecoration = titleTextDecoration === 'underline' ? 'none' : 'underline';
+                                console.log('[CanvasEditor] Setting title text decoration:', newDecoration);
+                                setTitleTextDecoration(newDecoration);
+                              }}
                               className={`p-2 rounded-lg border transition-all ${
                                 titleTextDecoration === 'underline'
                                   ? 'bg-neutral-900 text-white border-neutral-900'
