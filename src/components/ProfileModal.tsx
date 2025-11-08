@@ -212,6 +212,7 @@ const ProfileModal = ({ user, isOpen, onClose }: ProfileModalProps) => {
       }
 
       // Call the Stripe Connect onboarding function
+      console.log('Calling stripe-connect-onboarding function...');
       const { data, error } = await supabase.functions.invoke('stripe-connect-onboarding', {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -219,14 +220,21 @@ const ProfileModal = ({ user, isOpen, onClose }: ProfileModalProps) => {
       });
 
       if (error) {
-        console.error('Error connecting Stripe:', error);
-        const errorMessage = error.message || 'Failed to connect Stripe account. Please try again.';
-      
-        // Check if function doesn't exist (not deployed)
-        if (errorMessage.includes('Function not found') || errorMessage.includes('404') || errorMessage.includes('not found')) {
-          alert('The Stripe Connect function is not deployed yet. Please deploy the "stripe-connect-onboarding" Edge Function in your Supabase dashboard.');
+        console.error('Error connecting Stripe - Full error:', error);
+        console.error('Error details:', JSON.stringify(error, null, 2));
+        
+        const errorMessage = error.message || error.toString() || 'Failed to connect Stripe account. Please try again.';
+        
+        // Check for common error types
+        if (errorMessage.includes('Function not found') || 
+            errorMessage.includes('404') || 
+            errorMessage.includes('not found') ||
+            errorMessage.includes('Failed to send a request')) {
+          alert('The Stripe Connect function is not deployed yet.\n\nPlease:\n1. Go to your Supabase Dashboard\n2. Navigate to Edge Functions\n3. Create a new function named "stripe-connect-onboarding"\n4. Copy the code from supabase/functions/stripe-connect-onboarding/index.ts\n5. Deploy the function');
+        } else if (errorMessage.includes('Network') || errorMessage.includes('fetch')) {
+          alert('Network error. Please check your internet connection and try again.');
         } else {
-          alert(errorMessage);
+          alert(`Error: ${errorMessage}\n\nCheck the browser console for more details.`);
         }
         return;
       }
