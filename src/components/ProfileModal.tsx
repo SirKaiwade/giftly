@@ -54,6 +54,31 @@ const ProfileModal = ({ user, isOpen, onClose }: ProfileModalProps) => {
     }
   }, [isOpen, user]);
 
+  // Update active section based on scroll position
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleScroll = () => {
+      const sections = ['personal', 'address', 'business', 'payments'];
+      const scrollPosition = document.querySelector('.flex-1.overflow-y-auto')?.scrollTop || 0;
+
+      for (let i = sections.length - 1; i >= 0; i--) {
+        const element = document.getElementById(`section-${sections[i]}`);
+        if (element) {
+          const offsetTop = element.offsetTop - 100; // Account for padding
+          if (scrollPosition >= offsetTop) {
+            setActiveSection(sections[i]);
+            break;
+          }
+        }
+      }
+    };
+
+    const contentArea = document.querySelector('.flex-1.overflow-y-auto');
+    contentArea?.addEventListener('scroll', handleScroll);
+    return () => contentArea?.removeEventListener('scroll', handleScroll);
+  }, [isOpen]);
+
   const loadProfile = async () => {
     setIsLoading(true);
     try {
@@ -204,30 +229,7 @@ const ProfileModal = ({ user, isOpen, onClose }: ProfileModalProps) => {
     }
   };
 
-  // Update active section based on scroll position
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleScroll = () => {
-      const sections = ['personal', 'address', 'business', 'payments'];
-      const scrollPosition = document.querySelector('.flex-1.overflow-y-auto')?.scrollTop || 0;
-
-      for (let i = sections.length - 1; i >= 0; i--) {
-        const element = document.getElementById(`section-${sections[i]}`);
-        if (element) {
-          const offsetTop = element.offsetTop - 100; // Account for padding
-          if (scrollPosition >= offsetTop) {
-            setActiveSection(sections[i]);
-            break;
-          }
-        }
-      }
-    };
-
-    const contentArea = document.querySelector('.flex-1.overflow-y-auto');
-    contentArea?.addEventListener('scroll', handleScroll);
-    return () => contentArea?.removeEventListener('scroll', handleScroll);
-  }, [isOpen]);
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-md">

@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useRegistry } from '../contexts/RegistryContext';
-import { ArrowLeft, GripVertical, Plus, Edit2, Trash2, Layout, Grid, Columns, Layers, ChevronDown, ChevronUp, X, FolderPlus, Settings, Calendar, Type, Image as ImageIcon, AlignLeft, Maximize2, BarChart3, Palette, Pencil } from 'lucide-react';
+import { GripVertical, Plus, Edit2, Trash2, Layout, Grid, Columns, Layers, ChevronDown, ChevronUp, X, FolderPlus, Settings, Calendar, Type, Image as ImageIcon, AlignLeft, BarChart3, Palette, Pencil, Share2 } from 'lucide-react';
 import { RegistryItem, Contribution, supabase } from '../lib/supabase';
 import PublicRegistry from './PublicRegistry';
 import ItemEditModal from './ItemEditModal';
 import AdminDashboard from './AdminDashboard';
 import ProfileModal from './ProfileModal';
-import { formatCurrency, calculateProgress, generateSlug } from '../utils/helpers';
-import { ITEM_TYPES, CATEGORIES, EVENT_TYPES, THEMES } from '../types';
+import NameRegistryModal from './NameRegistryModal';
+import ShareModal from './ShareModal';
+import { formatCurrency, generateSlug } from '../utils/helpers';
+import { CATEGORIES, EVENT_TYPES, THEMES } from '../types';
 import type { User } from '@supabase/supabase-js';
 
 type LayoutPreset = 'grid' | 'single' | 'staggered';
@@ -29,14 +31,12 @@ type CanvasEditorProps = {
   onBack?: () => void;
 };
 
-const CanvasEditor = ({ onBack }: CanvasEditorProps) => {
+const CanvasEditor = ({}: CanvasEditorProps) => {
   const { currentRegistry, currentItems, updateItems, addItem, updateItem, removeItem, updateRegistry } = useRegistry();
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<{ category: string; index: number } | null>(null);
-  const [dragOverSection, setDragOverSection] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<RegistryItem | null>(null);
   const [selectedLayout, setSelectedLayout] = useState<LayoutPreset>('grid');
-  const [showPreview, setShowPreview] = useState(true);
   const [fullScreenPreview, setFullScreenPreview] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
@@ -51,6 +51,12 @@ const CanvasEditor = ({ onBack }: CanvasEditorProps) => {
   const [renameValue, setRenameValue] = useState('');
   const [isSavingRegistry, setIsSavingRegistry] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showNameRegistryModal, setShowNameRegistryModal] = useState(false);
+  const [pendingRegistryAction, setPendingRegistryAction] = useState<((name: string) => Promise<void>) | null>(null);
+  const [userProfile, setUserProfile] = useState<{ full_name: string | null } | null>(null);
+  const [showRegistryDropdown, setShowRegistryDropdown] = useState(false);
+  const [deletingRegistryId, setDeletingRegistryId] = useState<string | null>(null);
+  const [showShareModal, setShowShareModal] = useState(false);
   const [customThemeColors, setCustomThemeColors] = useState<{
     accent: string;
     accentLight: string;
@@ -65,116 +71,172 @@ const CanvasEditor = ({ onBack }: CanvasEditorProps) => {
     surfaceElevated: string;
   } | null>(null);
 
+  // Function to save registry with a given name
+  const saveRegistryWithName = async (registryTitle: string) => {
+    if (!user || !currentRegistry || isSavingRegistry) {
+      return;
+    }
+
+    setIsSavingRegistry(true);
+    
+    try {
+      // Generate unique slug
+      const baseSlug = generateSlug(registryTitle);
+      let slug = baseSlug;
+      let slugCounter = 1;
+      
+      // Check if slug exists and make it unique
+      const { data: existing } = await supabase
+        .from('registries')
+        .select('slug')
+        .eq('slug', slug)
+        .single();
+      
+      if (existing) {
+        slug = `${baseSlug}-${slugCounter}`;
+        slugCounter++;
+      }
+
+      // Create registry in database
+      const { data: newRegistry, error } = await supabase
+        .from('registries')
+        .insert({
+          user_id: user.id,
+          slug: slug,
+          title: registryTitle,
+          event_type: currentRegistry.event_type || 'custom',
+          theme: currentRegistry.theme || 'minimal',
+          subtitle: currentRegistry.subtitle || '',
+          event_date: currentRegistry.event_date || null,
+          hero_image_url: currentRegistry.hero_image_url || '',
+          description: currentRegistry.description || '',
+          guestbook_enabled: currentRegistry.guestbook_enabled ?? true,
+          is_published: currentRegistry.is_published ?? false,
+        })
+        .select('id, title, event_type')
+        .single();
+
+      if (error) {
+        console.error('Error creating registry:', error);
+        alert('Failed to save registry. Please try again.');
+        setIsSavingRegistry(false);
+        return;
+      }
+
+      if (newRegistry) {
+        // Update context with the new ID
+        updateRegistry({ id: newRegistry.id, title: registryTitle });
+        setSelectedRegistryId(newRegistry.id);
+        setRegistries(prev => [newRegistry, ...prev]);
+        
+        // Save items if we have any
+        if (currentItems.length > 0) {
+          const itemsToSave = currentItems.map(item => ({
+            ...item,
+            registry_id: newRegistry.id,
+          }));
+          
+          const { error: itemsError } = await supabase
+            .from('registry_items')
+            .insert(itemsToSave.map(({ id, created_at, ...item }) => item));
+          
+          if (itemsError) {
+            console.error('Error saving items:', itemsError);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error in auto-save:', error);
+      alert('Failed to save registry. Please try again.');
+    } finally {
+      setIsSavingRegistry(false);
+    }
+  };
+
   // Auto-save registry when entering CanvasEditor if it doesn't exist in DB
   useEffect(() => {
     const autoSaveRegistry = async () => {
-      if (!user || !currentRegistry || selectedRegistryId || isSavingRegistry) {
+      console.log('[CanvasEditor] Auto-save check:', {
+        hasUser: !!user,
+        hasCurrentRegistry: !!currentRegistry,
+        currentRegistryId: currentRegistry?.id,
+        selectedRegistryId,
+        isSavingRegistry,
+        registriesCount: registries.length
+      });
+
+      // Wait for user and registries to load first
+      if (!user || isSavingRegistry) {
+        console.log('[CanvasEditor] Auto-save skipped: missing user or already saving');
+        return;
+      }
+
+      // If we already have a selectedRegistryId, don't auto-save (registry is already loaded)
+      if (selectedRegistryId) {
+        console.log('[CanvasEditor] Auto-save skipped: already have selectedRegistryId');
+        return;
+      }
+
+      // If user has existing registries, don't show naming modal - just load the first one
+      // This prevents the modal from showing on every reload
+      if (registries.length > 0) {
+        console.log('[CanvasEditor] User has existing registries, skipping auto-save');
+        // The registry loading effect will handle selecting the first registry
         return;
       }
       
-      // Don't auto-save if registry already has an ID (it's already saved)
-      if (currentRegistry.id) {
+      // Only proceed if there are NO registries (truly new registry)
+      if (!currentRegistry) {
+        console.log('[CanvasEditor] No current registry, skipping');
         return;
       }
       
-      // Check if we have a title, if not prompt for it
-      let registryTitle = currentRegistry.title;
+      // Don't auto-save if registry already has an ID and slug (it's already saved)
+      if (currentRegistry.id && currentRegistry.slug) {
+        console.log('[CanvasEditor] Registry has ID and slug, already saved');
+        return;
+      }
+      
+      // Check if we have a title, if not show modal for it
+      const registryTitle = currentRegistry.title;
       if (!registryTitle || registryTitle.trim() === '') {
-        const title = prompt('Please name your registry:');
-        if (!title || title.trim() === '') {
-          // User cancelled or entered empty name, use default
-          registryTitle = `My Registry ${new Date().toLocaleDateString()}`;
-        } else {
-          registryTitle = title.trim();
-        }
-        updateRegistry({ title: registryTitle });
+        console.log('[CanvasEditor] No title and no existing registries, showing name modal');
+        // Only show modal if user has NO registries (truly new)
+        setShowNameRegistryModal(true);
+        return; // Exit early, will continue after modal submission
       }
 
-      setIsSavingRegistry(true);
-      
-      try {
-        // Generate unique slug
-        const baseSlug = generateSlug(registryTitle);
-        let slug = baseSlug;
-        let slugCounter = 1;
-        
-        // Check if slug exists and make it unique
-        const { data: existing } = await supabase
-          .from('registries')
-          .select('slug')
-          .eq('slug', slug)
-          .single();
-        
-        if (existing) {
-          slug = `${baseSlug}-${slugCounter}`;
-          slugCounter++;
-        }
-
-        // Create registry in database
-        const { data: newRegistry, error } = await supabase
-          .from('registries')
-          .insert({
-            user_id: user.id,
-            slug: slug,
-            title: registryTitle,
-            event_type: currentRegistry.event_type || 'custom',
-            theme: currentRegistry.theme || 'minimal',
-            subtitle: currentRegistry.subtitle || '',
-            event_date: currentRegistry.event_date || null,
-            hero_image_url: currentRegistry.hero_image_url || '',
-            description: currentRegistry.description || '',
-            guestbook_enabled: currentRegistry.guestbook_enabled ?? true,
-            is_published: currentRegistry.is_published ?? false,
-          })
-          .select('id, title, event_type')
-          .single();
-
-        if (error) {
-          console.error('Error creating registry:', error);
-          alert('Failed to save registry. Please try again.');
-          setIsSavingRegistry(false);
-          return;
-        }
-
-        if (newRegistry) {
-          // Update context with the new ID
-          updateRegistry({ id: newRegistry.id });
-          setSelectedRegistryId(newRegistry.id);
-          setRegistries(prev => [newRegistry, ...prev]);
-          
-          // Save items if we have any
-          if (currentItems.length > 0) {
-            const itemsToSave = currentItems.map(item => ({
-              ...item,
-              registry_id: newRegistry.id,
-            }));
-            
-            const { error: itemsError } = await supabase
-              .from('registry_items')
-              .insert(itemsToSave.map(({ id, created_at, ...item }) => item));
-            
-            if (itemsError) {
-              console.error('Error saving items:', itemsError);
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error in auto-save:', error);
-        alert('Failed to save registry. Please try again.');
-      } finally {
-        setIsSavingRegistry(false);
-      }
+      console.log('[CanvasEditor] Auto-saving registry with title:', registryTitle);
+      // If we have a title, save immediately
+      await saveRegistryWithName(registryTitle);
     };
 
-    autoSaveRegistry();
+    // Only run auto-save after registries have been loaded
+    // Add a small delay to ensure registries are fully loaded
+    const timeoutId = setTimeout(() => {
+      if (user) {
+        autoSaveRegistry();
+      }
+    }, 100);
+
+    return () => clearTimeout(timeoutId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, currentRegistry?.title]);
+  }, [user, registries.length, selectedRegistryId]);
 
   // Get user info and load registries
   useEffect(() => {
+    console.log('[CanvasEditor] Loading user and registries...');
+    let mounted = true;
+    
     supabase.auth.getUser().then(({ data: { user } }) => {
+      console.log('[CanvasEditor] getUser result:', { hasUser: !!user, userId: user?.id });
+      if (!mounted) {
+        console.log('[CanvasEditor] Component unmounted, skipping user set');
+        return;
+      }
       setUser(user);
       if (user) {
+        console.log('[CanvasEditor] Loading registries for user:', user.id);
         // Load user's registries
         supabase
           .from('registries')
@@ -182,45 +244,82 @@ const CanvasEditor = ({ onBack }: CanvasEditorProps) => {
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
           .then(({ data, error }) => {
+            console.log('[CanvasEditor] Registries loaded:', { count: data?.length, error });
+            if (!mounted) {
+              console.log('[CanvasEditor] Component unmounted, skipping registries set');
+              return;
+            }
             if (!error && data) {
               setRegistries(data);
+              console.log('[CanvasEditor] Setting registries, currentRegistry:', {
+                hasId: !!currentRegistry?.id,
+                hasTitle: !!currentRegistry?.title,
+                id: currentRegistry?.id
+              });
               // Set current registry as selected if we have one
               if (currentRegistry?.id) {
                 const current = data.find(r => r.id === currentRegistry.id);
                 if (current) {
+                  console.log('[CanvasEditor] Found registry by ID, selecting:', current.id);
                   setSelectedRegistryId(current.id);
                 } else if (data.length > 0) {
+                  console.log('[CanvasEditor] Registry ID not found, selecting first:', data[0].id);
                   setSelectedRegistryId(data[0].id);
                 }
               } else if (currentRegistry && currentRegistry.title) {
                 // Fallback to title matching if ID not available
                 const current = data.find(r => r.title === currentRegistry.title);
                 if (current) {
+                  console.log('[CanvasEditor] Found registry by title, selecting:', current.id);
                   setSelectedRegistryId(current.id);
                 } else if (data.length > 0) {
+                  console.log('[CanvasEditor] Registry title not found, selecting first:', data[0].id);
                   setSelectedRegistryId(data[0].id);
                 }
               } else if (data.length > 0) {
+                console.log('[CanvasEditor] No current registry, selecting first:', data[0].id);
                 setSelectedRegistryId(data[0].id);
+                // Also update the context with the first registry's data
+                updateRegistry({
+                  id: data[0].id,
+                  title: data[0].title,
+                  event_type: data[0].event_type,
+                });
+              } else {
+                console.log('[CanvasEditor] No registries found');
               }
+            } else {
+              console.error('[CanvasEditor] Error loading registries:', error);
             }
           });
+      } else {
+        console.log('[CanvasEditor] No user, skipping registry load');
       }
     });
+    
+    return () => {
+      console.log('[CanvasEditor] Cleaning up user/registries effect');
+      mounted = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Load registry data when switching
   useEffect(() => {
+    console.log('[CanvasEditor] Load registry effect triggered:', { selectedRegistryId, hasUser: !!user });
     if (selectedRegistryId && user) {
+      console.log('[CanvasEditor] Loading registry data for:', selectedRegistryId);
       supabase
         .from('registries')
         .select('*')
         .eq('id', selectedRegistryId)
         .single()
         .then(({ data, error }) => {
+          console.log('[CanvasEditor] Registry data loaded:', { hasData: !!data, error });
           if (!error && data) {
             updateRegistry({
+              id: data.id,
+              slug: data.slug,
               event_type: data.event_type,
               theme: data.theme,
               title: data.title,
@@ -277,8 +376,39 @@ const CanvasEditor = ({ onBack }: CanvasEditorProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRegistryId, user]);
 
-  // Get initials from email
-  const getInitials = (email: string | undefined) => {
+  // Fetch user profile
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (!user) {
+        setUserProfile(null);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('full_name')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!error && data) {
+        setUserProfile(data);
+      } else {
+        setUserProfile({ full_name: null });
+      }
+    };
+
+    fetchUserProfile();
+  }, [user]);
+
+  // Get initials from name or email
+  const getInitials = (email: string | undefined, fullName?: string | null) => {
+    if (fullName && fullName.trim()) {
+      const parts = fullName.trim().split(/\s+/);
+      if (parts.length >= 2) {
+        return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+      }
+      return fullName[0].toUpperCase();
+    }
     if (!email) return 'U';
     const parts = email.split('@')[0].split(/[._-]/);
     if (parts.length >= 2) {
@@ -287,16 +417,6 @@ const CanvasEditor = ({ onBack }: CanvasEditorProps) => {
     return email.substring(0, 2).toUpperCase();
   };
 
-  // Get theme colors (handles custom theme)
-  const getThemeColors = () => {
-    if (currentRegistry?.theme === 'custom' && customThemeColors) {
-      return customThemeColors;
-    }
-    const theme = currentRegistry?.theme 
-      ? THEMES.find(t => t.value === currentRegistry.theme) 
-      : THEMES[0];
-    return theme?.colors || THEMES[0].colors;
-  };
 
   // Initialize expanded sections - expand all by default
   useEffect(() => {
@@ -350,10 +470,6 @@ const CanvasEditor = ({ onBack }: CanvasEditorProps) => {
     setDragOverIndex({ category, index });
   };
 
-  const handleDragLeave = () => {
-    setDragOverIndex(null);
-    setDragOverSection(null);
-  };
 
   const handleDrop = (e: React.DragEvent, targetCategory: string, targetIndex: number) => {
     e.preventDefault();
@@ -584,83 +700,160 @@ const CanvasEditor = ({ onBack }: CanvasEditorProps) => {
         <header className="bg-white border-b border-neutral-200 sticky top-0 z-50">
         <div className="max-w-[1920px] mx-auto px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            {onBack && (
+            {/* Registry Switcher - Custom Dropdown */}
+            <div className="relative">
               <button
-                onClick={onBack}
-                className="text-sm text-neutral-600 hover:text-neutral-900 transition-colors flex items-center space-x-1"
+                onClick={() => setShowRegistryDropdown(!showRegistryDropdown)}
+                className="flex items-center space-x-2 px-3 py-1.5 text-sm font-medium text-neutral-900 hover:bg-neutral-50 rounded-lg transition-colors"
               >
-                <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
-                <span>Back</span>
+                <span>
+                  {selectedRegistryId 
+                    ? registries.find(r => r.id === selectedRegistryId)?.title || 'Untitled Registry'
+                    : registries.length > 0 
+                      ? registries[0]?.title || 'Select Registry'
+                      : 'No registries'}
+                </span>
+                <ChevronDown className={`w-4 h-4 text-neutral-500 transition-transform ${showRegistryDropdown ? 'rotate-180' : ''}`} />
               </button>
-            )}
-            <div className="h-6 w-px bg-neutral-200" />
-            {/* Registry Switcher */}
-            <div className="flex items-center space-x-2">
-              <select
-                value={selectedRegistryId || ''}
-                onChange={(e) => {
-                  if (e.target.value === 'new') {
-                    // Create new registry
-                    const newTitle = prompt('Enter registry name:');
-                    if (newTitle && user) {
-                      const eventType = prompt('Event type (wedding/baby/birthday/housewarming/graduation/custom):') || 'custom';
-                      supabase
-                        .from('registries')
-                        .insert({
-                          user_id: user.id,
-                          slug: generateSlug(newTitle),
-                          title: newTitle,
-                          event_type: eventType,
-                          theme: 'minimal',
-                        })
-                        .select('id, title, event_type')
-                        .single()
-                        .then(({ data, error }) => {
-                          if (!error && data) {
-                            setRegistries([data, ...registries]);
-                            setSelectedRegistryId(data.id);
-                            updateRegistry({
-                              id: data.id,
-                              title: newTitle,
-                              event_type: eventType,
-                              theme: 'minimal',
-                            });
-                            updateItems([]);
-                          }
-                        });
-                    }
-                  } else {
-                    setSelectedRegistryId(e.target.value);
-                  }
-                }}
-                className="text-sm font-medium text-neutral-900 bg-transparent border-none outline-none cursor-pointer hover:text-neutral-700"
-              >
-                {registries.length === 0 ? (
-                  <option value="">No registries</option>
-                ) : (
-                  <>
-                    {registries.map((reg) => (
-                      <option key={reg.id} value={reg.id}>
-                        {reg.title || 'Untitled Registry'}
-                      </option>
-                    ))}
-                    <option value="new">+ Create New Registry</option>
-                  </>
-                )}
-              </select>
-              <ChevronDown className="w-4 h-4 text-neutral-500" />
-              {selectedRegistryId && (
-                <button
-                  onClick={() => {
-                    const currentReg = registries.find(r => r.id === selectedRegistryId);
-                    setRenameValue(currentReg?.title || currentRegistry?.title || '');
-                    setShowRenameModal(true);
-                  }}
-                  className="p-1.5 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors"
-                  title="Rename registry"
-                >
-                  <Pencil className="w-4 h-4" strokeWidth={1.5} />
-                </button>
+
+              {showRegistryDropdown && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-40" 
+                    onClick={() => setShowRegistryDropdown(false)}
+                  />
+                  <div className="absolute top-full left-0 mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg z-50 min-w-[200px] max-w-[300px] max-h-[400px] overflow-y-auto">
+                    {registries.length === 0 ? (
+                      <div className="px-4 py-3 text-sm text-neutral-500">No registries</div>
+                    ) : (
+                      <>
+                        {registries.map((reg) => (
+                          <div
+                            key={reg.id}
+                            className={`flex items-center justify-between px-4 py-2.5 hover:bg-neutral-50 transition-colors group ${
+                              selectedRegistryId === reg.id ? 'bg-neutral-50' : ''
+                            }`}
+                          >
+                            <button
+                              onClick={() => {
+                                setSelectedRegistryId(reg.id);
+                                setShowRegistryDropdown(false);
+                              }}
+                              className="flex-1 text-left text-sm font-medium text-neutral-900 hover:text-neutral-700"
+                            >
+                              {reg.title || 'Untitled Registry'}
+                            </button>
+                            <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const currentReg = registries.find(r => r.id === reg.id);
+                                  setRenameValue(currentReg?.title || '');
+                                  setSelectedRegistryId(reg.id);
+                                  setShowRenameModal(true);
+                                  setShowRegistryDropdown(false);
+                                }}
+                                className="p-1.5 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 rounded transition-colors"
+                                title="Rename registry"
+                              >
+                                <Pencil className="w-3.5 h-3.5" strokeWidth={1.5} />
+                              </button>
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  if (confirm(`Are you sure you want to delete "${reg.title}"? This action cannot be undone.`)) {
+                                    setDeletingRegistryId(reg.id);
+                                    try {
+                                      const { error } = await supabase
+                                        .from('registries')
+                                        .delete()
+                                        .eq('id', reg.id);
+
+                                      if (error) {
+                                        throw error;
+                                      }
+
+                                      // Remove from local state
+                                      setRegistries(prev => prev.filter(r => r.id !== reg.id));
+                                      
+                                      // If deleted registry was selected, switch to another or clear
+                                      if (selectedRegistryId === reg.id) {
+                                        const remaining = registries.filter(r => r.id !== reg.id);
+                                        if (remaining.length > 0) {
+                                          setSelectedRegistryId(remaining[0].id);
+                                        } else {
+                                          setSelectedRegistryId(null);
+                                          updateRegistry({ id: undefined, title: '' });
+                                          updateItems([]);
+                                        }
+                                      }
+                                    } catch (error) {
+                                      console.error('Error deleting registry:', error);
+                                      alert('Failed to delete registry. Please try again.');
+                                    } finally {
+                                      setDeletingRegistryId(null);
+                                      setShowRegistryDropdown(false);
+                                    }
+                                  }
+                                }}
+                                disabled={deletingRegistryId === reg.id}
+                                className="p-1.5 text-neutral-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                                title="Delete registry"
+                              >
+                                {deletingRegistryId === reg.id ? (
+                                  <div className="w-3.5 h-3.5 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                  <Trash2 className="w-3.5 h-3.5" strokeWidth={1.5} />
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                        <div className="border-t border-neutral-200">
+                          <button
+                            onClick={() => {
+                              setShowRegistryDropdown(false);
+                              setPendingRegistryAction(async (newTitle: string) => {
+                                if (user) {
+                                  const eventType = prompt('Event type (wedding/baby/birthday/housewarming/graduation/custom):') || 'custom';
+                                  supabase
+                                    .from('registries')
+                                    .insert({
+                                      user_id: user.id,
+                                      slug: generateSlug(newTitle),
+                                      title: newTitle,
+                                      event_type: eventType,
+                                      theme: 'minimal',
+                                    })
+                                    .select('id, title, event_type')
+                                    .single()
+                                    .then(({ data, error }) => {
+                                      if (!error && data) {
+                                        setRegistries([data, ...registries]);
+                                        setSelectedRegistryId(data.id);
+                                        updateRegistry({
+                                          id: data.id,
+                                          title: newTitle,
+                                          event_type: eventType,
+                                          theme: 'minimal',
+                                        });
+                                        updateItems([]);
+                                      }
+                                    });
+                                }
+                              });
+                              setShowNameRegistryModal(true);
+                            }}
+                            className="w-full px-4 py-2.5 text-sm font-medium text-neutral-900 hover:bg-neutral-50 transition-colors flex items-center space-x-2"
+                          >
+                            <Plus className="w-4 h-4" strokeWidth={1.5} />
+                            <span>Create New Registry</span>
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </>
               )}
             </div>
             <div className="h-6 w-px bg-neutral-200" />
@@ -733,27 +926,44 @@ const CanvasEditor = ({ onBack }: CanvasEditorProps) => {
                 <Settings className="w-4 h-4" strokeWidth={1.5} />
                 <span className="hidden sm:inline">Event Info</span>
               </button>
-              <button
-                onClick={() => setShowPreview(!showPreview)}
-                className="px-4 py-2 text-sm text-neutral-600 hover:text-neutral-900 transition-colors flex items-center space-x-2"
-              >
-                <span className="hidden sm:inline">{showPreview ? 'Hide' : 'Show'} Preview</span>
-              </button>
+              {currentRegistry?.slug && (
+                <button
+                  onClick={() => setShowShareModal(true)}
+                  className="px-4 py-2 text-sm bg-neutral-900 hover:bg-neutral-800 text-white rounded-lg transition-all duration-200 flex items-center space-x-2 hover:scale-105 hover:shadow-lg"
+                  title="Share Registry"
+                >
+                  <Share2 className="w-4 h-4" strokeWidth={1.5} />
+                  <span className="hidden sm:inline">Share</span>
+                </button>
+              )}
             </div>
             
             {/* User Profile Picture */}
             {user && (
               <button
-                onClick={() => setShowProfileModal(true)}
+                onClick={() => {
+                  setShowProfileModal(true);
+                  // Refresh profile when opening modal
+                  supabase
+                    .from('user_profiles')
+                    .select('full_name')
+                    .eq('user_id', user.id)
+                    .single()
+                    .then(({ data }) => {
+                      if (data) {
+                        setUserProfile(data);
+                      }
+                    });
+                }}
                 className="flex items-center space-x-3 pl-4 border-l border-neutral-200 hover:bg-neutral-50 rounded-lg px-2 py-1 transition-colors group"
                 title="Edit Profile"
               >
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-neutral-900 to-neutral-700 flex items-center justify-center text-white font-semibold text-sm shadow-sm group-hover:shadow-md transition-shadow">
-                  {getInitials(user.email)}
+                  {getInitials(user.email, userProfile?.full_name)}
                 </div>
                 <div className="hidden sm:block text-left">
                   <div className="text-sm font-medium text-neutral-900 group-hover:text-neutral-700">
-                    {user.email?.split('@')[0]}
+                    {userProfile?.full_name || user.email?.split('@')[0] || 'User'}
                   </div>
                   <div className="text-xs text-neutral-500">{user.email}</div>
                 </div>
@@ -1043,495 +1253,86 @@ const CanvasEditor = ({ onBack }: CanvasEditorProps) => {
           </div>
         )}
 
-        {/* Canvas Area */}
+        {/* Live Preview - Full Width and Directly Editable */}
         {!fullScreenPreview && (
-          <div 
-            className={`flex-1 overflow-y-auto transition-all ${showPreview ? 'lg:w-1/2' : 'w-full'}`}
-            style={{ 
-              backgroundColor: currentRegistry?.theme 
-                ? THEMES.find(t => t.value === currentRegistry.theme)?.colors.background || '#ffffff'
-                : '#ffffff'
-            }}
-          >
-            <div className="max-w-4xl mx-auto px-6 lg:px-8 py-12">
-              <div className="mb-8">
-                <h2 
-                  className="text-display-3 font-light tracking-tight mb-2"
-                  style={{ 
-                    color: currentRegistry?.theme 
-                      ? THEMES.find(t => t.value === currentRegistry.theme)?.colors.text || '#0a0a0a'
-                      : '#0a0a0a'
-                  }}
-                >
-                  Organize Your Registry
-                </h2>
-                <p 
-                  className="text-body-lg font-light"
-                  style={{ 
-                    color: currentRegistry?.theme 
-                      ? THEMES.find(t => t.value === currentRegistry.theme)?.colors.textLight || '#525252'
-                      : '#525252'
-                  }}
-                >
-                  {selectedSection 
-                    ? `Drag items within "${CATEGORY_LABELS[selectedSection] || selectedSection}" to reorder`
-                    : 'Click a section below to organize its items'
-                  }
-                </p>
-              </div>
-
-            {/* Section Selection View or Selected Section Edit View */}
-            {selectedSection ? (
-              // Show selected section's items for editing
-              (() => {
-                const items = groupedItems[selectedSection] || [];
-                return (
-                  <div className="space-y-6">
-                    {/* Back Button */}
-                    <button
-                      onClick={() => setSelectedSection(null)}
-                      className="flex items-center space-x-2 text-sm text-neutral-600 hover:text-neutral-900 transition-colors mb-6"
-                    >
-                      <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
-                      <span>Back to Sections</span>
-                    </button>
-
-                    {/* Selected Section Header */}
-                    <div 
-                      className="mb-6 pb-4 border-b"
-                      style={{ 
-                        borderColor: currentRegistry?.theme 
-                          ? THEMES.find(t => t.value === currentRegistry.theme)?.colors.border || '#e5e5e5'
-                          : '#e5e5e5'
-                      }}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <h3 
-                            className="text-2xl font-light"
-                            style={{ 
-                              color: currentRegistry?.theme 
-                                ? THEMES.find(t => t.value === currentRegistry.theme)?.colors.text || '#0a0a0a'
-                                : '#0a0a0a'
-                            }}
-                          >
-                            {CATEGORY_LABELS[selectedSection] || selectedSection.charAt(0).toUpperCase() + selectedSection.slice(1)}
-                          </h3>
-                          <span 
-                            className="text-sm"
-                            style={{ 
-                              color: currentRegistry?.theme 
-                                ? THEMES.find(t => t.value === currentRegistry.theme)?.colors.textMuted || '#737373'
-                                : '#737373'
-                            }}
-                          >
-                            ({items.length} {items.length === 1 ? 'item' : 'items'})
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => handleAddItem(selectedSection)}
-                          className="px-4 py-2 text-sm rounded-lg transition-colors flex items-center space-x-2"
-                          style={{
-                            backgroundColor: currentRegistry?.theme 
-                              ? THEMES.find(t => t.value === currentRegistry.theme)?.colors.surface || '#fafafa'
-                              : '#fafafa',
-                            color: currentRegistry?.theme 
-                              ? THEMES.find(t => t.value === currentRegistry.theme)?.colors.text || '#0a0a0a'
-                              : '#0a0a0a',
-                          }}
-                          onMouseEnter={(e) => {
-                            const theme = currentRegistry?.theme ? THEMES.find(t => t.value === currentRegistry.theme) : null;
-                            if (theme) {
-                              e.currentTarget.style.backgroundColor = theme.colors.surfaceElevated;
-                            }
-                          }}
-                          onMouseLeave={(e) => {
-                            const theme = currentRegistry?.theme ? THEMES.find(t => t.value === currentRegistry.theme) : null;
-                            if (theme) {
-                              e.currentTarget.style.backgroundColor = theme.colors.surface;
-                            }
-                          }}
-                        >
-                          <Plus className="w-4 h-4" strokeWidth={1.5} />
-                          <span>Add Item</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Section Items - Drag and Drop */}
-                    <div 
-                      className={`space-y-3 transition-all ${
-                        dragOverSection === selectedSection ? 'bg-neutral-50' : ''
-                      }`}
-                        onDragOver={(e) => {
-                          e.preventDefault();
-                          setDragOverSection(selectedSection);
-                        }}
-                        onDragLeave={(e) => {
-                          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                          const x = e.clientX;
-                          const y = e.clientY;
-                          if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
-                            setDragOverSection(null);
-                          }
-                        }}
-                      >
-                        {items.length > 0 ? (
-                          items.map((item, index) => {
-                            const theme = currentRegistry?.theme ? THEMES.find(t => t.value === currentRegistry.theme) : THEMES[0];
-                            const themeColors = theme?.colors || THEMES[0].colors;
-                            
-                            return (
-                              <div
-                                key={item.id}
-                                draggable
-                                onDragStart={(e) => handleDragStart(e, item.id)}
-                                onDragOver={(e) => handleDragOver(e, selectedSection, index)}
-                                onDragLeave={handleDragLeave}
-                                onDrop={(e) => handleDrop(e, selectedSection, index)}
-                                className={`group rounded-2xl transition-all cursor-move ${
-                                  draggedItem === item.id
-                                    ? 'opacity-30 scale-95'
-                                    : dragOverIndex?.category === selectedSection && dragOverIndex?.index === index && draggedItem !== item.id
-                                    ? 'scale-105 shadow-lg'
-                                    : 'hover:shadow-md'
-                                }`}
-                                style={{
-                                  backgroundColor: themeColors.surfaceElevated,
-                                  border: `2px solid ${draggedItem === item.id ? themeColors.border : dragOverIndex?.category === selectedSection && dragOverIndex?.index === index && draggedItem !== item.id ? themeColors.accent : themeColors.border}`,
-                                }}
-                              >
-                                <div className="p-5">
-                                  <div className="flex items-start justify-between mb-3">
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center space-x-2 mb-2">
-                                        <GripVertical 
-                                          className="w-4 h-4 flex-shrink-0" 
-                                          strokeWidth={1.5}
-                                          style={{ color: themeColors.textMuted }}
-                                        />
-                                        <h4 
-                                          className="text-base font-medium"
-                                          style={{ color: themeColors.text }}
-                                        >
-                                          {item.title}
-                                        </h4>
-                                      </div>
-                                      {item.description && (
-                                        <p 
-                                          className="text-sm line-clamp-2 mb-3"
-                                          style={{ color: themeColors.textMuted }}
-                                        >
-                                          {item.description}
-                                        </p>
-                                      )}
-                                    </div>
-                                    <div className="flex items-center space-x-2 ml-4">
-                                      <button
-                                        onClick={() => setEditingItem(item)}
-                                        className="p-2 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                                        style={{ 
-                                          color: themeColors.textMuted,
-                                        }}
-                                        onMouseEnter={(e) => {
-                                          e.currentTarget.style.backgroundColor = themeColors.surface;
-                                          e.currentTarget.style.color = themeColors.text;
-                                        }}
-                                        onMouseLeave={(e) => {
-                                          e.currentTarget.style.backgroundColor = 'transparent';
-                                          e.currentTarget.style.color = themeColors.textMuted;
-                                        }}
-                                        title="Edit item"
-                                      >
-                                        <Edit2 className="w-4 h-4" strokeWidth={1.5} />
-                                      </button>
-                                      <button
-                                        onClick={() => {
-                                          if (confirm(`Delete "${item.title}"?`)) {
-                                            removeItem(item.id);
-                                          }
-                                        }}
-                                        className="p-2 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                                        style={{ 
-                                          color: themeColors.textMuted,
-                                        }}
-                                        onMouseEnter={(e) => {
-                                          e.currentTarget.style.backgroundColor = '#fee2e2';
-                                          e.currentTarget.style.color = '#dc2626';
-                                        }}
-                                        onMouseLeave={(e) => {
-                                          e.currentTarget.style.backgroundColor = 'transparent';
-                                          e.currentTarget.style.color = themeColors.textMuted;
-                                        }}
-                                        title="Delete item"
-                                      >
-                                        <Trash2 className="w-4 h-4" strokeWidth={1.5} />
-                                      </button>
-                                    </div>
-                                  </div>
-                                  
-                                  {item.item_type === 'cash' ? (
-                                    <div className="pt-2">
-                                      <div className="flex items-baseline justify-between mb-2">
-                                        <span 
-                                          className="text-sm font-medium"
-                                          style={{ color: themeColors.text }}
-                                        >
-                                          {formatCurrency(item.current_amount)}
-                                        </span>
-                                        <span 
-                                          className="text-sm"
-                                          style={{ color: themeColors.textMuted }}
-                                        >
-                                          of {formatCurrency(item.price_amount)}
-                                        </span>
-                                      </div>
-                                      <div 
-                                        className="w-full h-1.5 rounded-full overflow-hidden"
-                                        style={{ backgroundColor: themeColors.borderLight }}
-                                      >
-                                        <div
-                                          className="h-full rounded-full transition-all duration-700 ease-out"
-                                          style={{
-                                            width: `${calculateProgress(item.current_amount, item.price_amount)}%`,
-                                            backgroundColor: themeColors.accent,
-                                          }}
-                                        />
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="pt-1">
-                                      <span 
-                                        className="text-base font-semibold"
-                                        style={{ color: themeColors.text }}
-                                      >
-                                        {formatCurrency(item.price_amount)}
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })
-                        ) : (
-                          (() => {
-                            const theme = currentRegistry?.theme ? THEMES.find(t => t.value === currentRegistry.theme) : THEMES[0];
-                            const themeColors = theme?.colors || THEMES[0].colors;
-                            
-                            return (
-                              <div 
-                                className="text-center py-8 border-2 border-dashed rounded-lg"
-                                style={{
-                                  borderColor: themeColors.border,
-                                  backgroundColor: themeColors.surface,
-                                }}
-                              >
-                                <p 
-                                  className="text-sm mb-2"
-                                  style={{ color: themeColors.textMuted }}
-                                >
-                                  No items in this section
-                                </p>
-                                <button
-                                  onClick={() => handleAddItem(selectedSection)}
-                                  className="text-sm font-medium transition-colors"
-                                  style={{ color: themeColors.accent }}
-                                  onMouseEnter={(e) => {
-                                    e.currentTarget.style.color = themeColors.accentDark;
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    e.currentTarget.style.color = themeColors.accent;
-                                  }}
-                                >
-                                  Add your first item
-                                </button>
-                              </div>
-                            );
-                          })()
-                        )}
-                      </div>
-                  </div>
-                );
-              })()
-            ) : (
-              // Show section selection grid
-              categories.length > 0 ? (
-                (() => {
-                  const theme = currentRegistry?.theme ? THEMES.find(t => t.value === currentRegistry.theme) : THEMES[0];
-                  const themeColors = theme?.colors || THEMES[0].colors;
-                  
-                  return (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {categories.map((category) => {
-                        const items = groupedItems[category] || [];
-                        return (
-                          <button
-                            key={category}
-                            onClick={() => setSelectedSection(category)}
-                            className="border-2 rounded-xl p-6 text-left hover:shadow-lg transition-all group"
-                            style={{
-                              backgroundColor: themeColors.surfaceElevated,
-                              borderColor: themeColors.border,
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.borderColor = themeColors.accent;
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.borderColor = themeColors.border;
-                            }}
-                          >
-                            <div className="flex items-start justify-between mb-3">
-                              <div className="flex items-center space-x-3">
-                                <div 
-                                  className="w-2 h-2 rounded-full transition-colors"
-                                  style={{ backgroundColor: themeColors.accent }}
-                                />
-                                <h3 
-                                  className="text-lg font-semibold"
-                                  style={{ color: themeColors.text }}
-                                >
-                                  {CATEGORY_LABELS[category] || category.charAt(0).toUpperCase() + category.slice(1)}
-                                </h3>
-                              </div>
-                              <ChevronDown 
-                                className="w-5 h-5 transition-colors rotate-[-90deg]"
-                                style={{ color: themeColors.textMuted }}
-                              />
-                            </div>
-                            <p 
-                              className="text-sm"
-                              style={{ color: themeColors.textMuted }}
-                            >
-                              {items.length} {items.length === 1 ? 'item' : 'items'}
-                            </p>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  );
-                })()
-              ) : (
-                (() => {
-                  const theme = currentRegistry?.theme ? THEMES.find(t => t.value === currentRegistry.theme) : THEMES[0];
-                  const themeColors = theme?.colors || THEMES[0].colors;
-                  
-                  return (
-                    <div 
-                      className="text-center py-16 border-2 border-dashed rounded-xl"
-                      style={{
-                        borderColor: themeColors.border,
-                        backgroundColor: themeColors.surface,
-                      }}
-                    >
-                      <div 
-                        className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"
-                        style={{ backgroundColor: themeColors.borderLight }}
-                      >
-                        <FolderPlus 
-                          className="w-8 h-8" 
-                          strokeWidth={1.5}
-                          style={{ color: themeColors.textMuted }}
-                        />
-                      </div>
-                      <p 
-                        className="font-medium mb-2"
-                        style={{ color: themeColors.text }}
-                      >
-                        No sections yet
-                      </p>
-                      <p 
-                        className="text-sm mb-4"
-                        style={{ color: themeColors.textMuted }}
-                      >
-                        Add a section from the sidebar to start organizing your registry
-                      </p>
-                      <button
-                        onClick={() => {
-                          const category = availableCategories[0] || 'general';
-                          handleAddSection(category);
-                        }}
-                        className="px-6 py-3 rounded-lg font-medium transition-colors"
-                        style={{
-                          backgroundColor: themeColors.accent,
-                          color: themeColors.background === '#0a0a0a' ? '#ffffff' : '#ffffff',
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = themeColors.accentDark;
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = themeColors.accent;
-                        }}
-                      >
-                        Create First Section
-                      </button>
-                    </div>
-                  );
-                })()
-              )
-            )}
-          </div>
+          <div className="flex-1 overflow-y-auto">
+            <PublicRegistry
+              registry={{
+                id: currentRegistry?.id || '',
+                user_id: user?.id || '',
+                slug: currentRegistry?.slug || '',
+                event_type: currentRegistry?.event_type || 'wedding',
+                theme: currentRegistry?.theme || 'minimal',
+                title: currentRegistry?.title || '',
+                subtitle: currentRegistry?.subtitle || '',
+                event_date: currentRegistry?.event_date || '',
+                hero_image_url: currentRegistry?.hero_image_url || '',
+                description: currentRegistry?.description || '',
+                guestbook_enabled: currentRegistry?.guestbook_enabled ?? true,
+                is_published: currentRegistry?.is_published ?? false,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              }}
+              items={currentItems.sort((a, b) => a.priority - b.priority)}
+              isPreview={true}
+              customThemeColors={customThemeColors}
+              onUpdateRegistry={updateRegistry}
+              onEditItem={setEditingItem}
+              onAddItem={handleAddItem}
+              onDeleteItem={removeItem}
+              onDragStart={handleDragStart}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+              draggedItemId={draggedItem}
+              dragOverIndex={dragOverIndex}
+            />
           </div>
         )}
 
-        {/* Preview Pane */}
-        {showPreview && (
-          <div className={`${fullScreenPreview ? 'w-full fixed inset-0 z-40' : 'hidden lg:block w-1/2 border-l border-neutral-200'} bg-white overflow-y-auto`}>
-            {fullScreenPreview && (
-              <div className="sticky top-0 bg-white border-b border-neutral-200 px-6 py-4 z-10 flex items-center justify-between">
-                <h3 className="text-sm font-medium text-neutral-900">Live Preview</h3>
-                <button
-                  onClick={() => setFullScreenPreview(false)}
-                  className="p-2 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors"
-                  title="Exit Fullscreen Preview"
-                >
-                  <X className="w-5 h-5" strokeWidth={1.5} />
-                </button>
-              </div>
-            )}
-            {!fullScreenPreview && (
-              <div className="sticky top-0 bg-white border-b border-neutral-200 px-6 py-4 z-10 flex items-center justify-between">
-                <h3 className="text-sm font-medium text-neutral-900">Live Preview</h3>
-                <button
-                  onClick={() => setFullScreenPreview(true)}
-                  className="p-2 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors"
-                  title="Fullscreen Preview"
-                >
-                  <Maximize2 className="w-4 h-4" strokeWidth={1.5} />
-                </button>
-              </div>
-            )}
-            <div className={fullScreenPreview ? '' : 'p-6'}>
-              <PublicRegistry
-                registry={{
-                  id: '',
-                  user_id: '',
-                  slug: '',
-                  event_type: currentRegistry?.event_type || 'wedding',
-                  theme: currentRegistry?.theme || 'minimal',
-                  title: currentRegistry?.title || '',
-                  subtitle: currentRegistry?.subtitle || '',
-                  event_date: currentRegistry?.event_date || '',
-                  hero_image_url: currentRegistry?.hero_image_url || '',
-                  description: currentRegistry?.description || '',
-                  guestbook_enabled: currentRegistry?.guestbook_enabled ?? true,
-                  is_published: currentRegistry?.is_published ?? false,
-                  created_at: new Date().toISOString(),
-                  updated_at: new Date().toISOString(),
-                }}
-                items={currentItems.sort((a, b) => a.priority - b.priority)}
-                isPreview={true}
-                customThemeColors={customThemeColors}
-                onUpdateRegistry={(updates) => {
-                  updateRegistry(updates);
-                  if (selectedRegistryId && user) {
-                    supabase
-                      .from('registries')
-                      .update({ ...updates, updated_at: new Date().toISOString() })
-                      .eq('id', selectedRegistryId);
-                  }
-                }}
-              />
+
+        {/* Fullscreen Preview */}
+        {fullScreenPreview && (
+          <div className="w-full fixed inset-0 z-40 bg-white overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-neutral-200 px-6 py-4 z-10 flex items-center justify-between">
+              <h3 className="text-sm font-medium text-neutral-900">Live Preview</h3>
+              <button
+                onClick={() => setFullScreenPreview(false)}
+                className="p-2 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors"
+                title="Exit Fullscreen Preview"
+              >
+                <X className="w-5 h-5" strokeWidth={1.5} />
+              </button>
             </div>
+            <PublicRegistry
+              registry={{
+                id: currentRegistry?.id || '',
+                user_id: user?.id || '',
+                slug: currentRegistry?.slug || '',
+                event_type: currentRegistry?.event_type || 'wedding',
+                theme: currentRegistry?.theme || 'minimal',
+                title: currentRegistry?.title || '',
+                subtitle: currentRegistry?.subtitle || '',
+                event_date: currentRegistry?.event_date || '',
+                hero_image_url: currentRegistry?.hero_image_url || '',
+                description: currentRegistry?.description || '',
+                guestbook_enabled: currentRegistry?.guestbook_enabled ?? true,
+                is_published: currentRegistry?.is_published ?? false,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              }}
+              items={currentItems.sort((a, b) => a.priority - b.priority)}
+              isPreview={true}
+              customThemeColors={customThemeColors}
+              onUpdateRegistry={(updates) => {
+                updateRegistry(updates);
+                if (selectedRegistryId && user) {
+                  supabase
+                    .from('registries')
+                    .update({ ...updates, updated_at: new Date().toISOString() })
+                    .eq('id', selectedRegistryId);
+                }
+              }}
+            />
           </div>
         )}
       </div>
@@ -1891,7 +1692,50 @@ const CanvasEditor = ({ onBack }: CanvasEditorProps) => {
         <ProfileModal
           user={user}
           isOpen={showProfileModal}
-          onClose={() => setShowProfileModal(false)}
+          onClose={() => {
+            setShowProfileModal(false);
+            // Refresh profile after closing modal (in case it was updated)
+            if (user) {
+              supabase
+                .from('user_profiles')
+                .select('full_name')
+                .eq('user_id', user.id)
+                .single()
+                .then(({ data }) => {
+                  if (data) {
+                    setUserProfile(data);
+                  }
+                });
+            }
+          }}
+        />
+      )}
+      {/* Name Registry Modal */}
+      <NameRegistryModal
+        isOpen={showNameRegistryModal}
+        onClose={() => {
+          setShowNameRegistryModal(false);
+          setPendingRegistryAction(null);
+        }}
+        onSubmit={async (name: string) => {
+          setShowNameRegistryModal(false);
+          if (pendingRegistryAction) {
+            await pendingRegistryAction(name);
+            setPendingRegistryAction(null);
+          } else {
+            // Default action: save registry with name
+            await saveRegistryWithName(name);
+          }
+        }}
+        defaultValue={currentRegistry?.title || ''}
+      />
+      
+      {/* Share Modal */}
+      {currentRegistry?.slug && showShareModal && (
+        <ShareModal
+          registryUrl={currentRegistry.slug}
+          registryTitle={currentRegistry.title || 'Untitled Registry'}
+          onClose={() => setShowShareModal(false)}
         />
       )}
     </div>

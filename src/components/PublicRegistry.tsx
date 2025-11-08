@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { ArrowUpRight, Share2, Edit2, X } from 'lucide-react';
+import React, { useState } from 'react';
+import { ArrowUpRight, Share2, Edit2, X, Plus, GripVertical, Trash2 } from 'lucide-react';
 import { Registry, RegistryItem } from '../lib/supabase';
 import { formatCurrency, calculateProgress } from '../utils/helpers';
 import ContributionModal from './ContributionModal';
@@ -23,9 +23,31 @@ type PublicRegistryProps = {
     surfaceElevated: string;
   } | null;
   onUpdateRegistry?: (updates: Partial<Registry>) => void;
+  onEditItem?: (item: RegistryItem) => void;
+  onAddItem?: (category: string) => void;
+  onDeleteItem?: (itemId: string) => void;
+  onDragStart?: (e: React.DragEvent, itemId: string) => void;
+  onDragOver?: (e: React.DragEvent, category: string, index: number) => void;
+  onDrop?: (e: React.DragEvent, category: string, index: number) => void;
+  draggedItemId?: string | null;
+  dragOverIndex?: { category: string; index: number } | null;
 };
 
-const PublicRegistry = ({ registry, items, isPreview = false, customThemeColors, onUpdateRegistry }: PublicRegistryProps) => {
+const PublicRegistry = ({ 
+  registry, 
+  items, 
+  isPreview = false, 
+  customThemeColors, 
+  onUpdateRegistry,
+  onEditItem,
+  onAddItem,
+  onDeleteItem,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  draggedItemId,
+  dragOverIndex
+}: PublicRegistryProps) => {
   const [selectedItem, setSelectedItem] = useState<RegistryItem | null>(null);
   const [editingField, setEditingField] = useState<'title' | 'subtitle' | 'description' | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -265,7 +287,6 @@ const PublicRegistry = ({ registry, items, isPreview = false, customThemeColors,
                     color: themeColors.text,
                     borderColor: themeColors.border,
                     backgroundColor: themeColors.surface,
-                    focusRingColor: themeColors.accent
                   }}
                   autoFocus
                 />
@@ -343,7 +364,6 @@ const PublicRegistry = ({ registry, items, isPreview = false, customThemeColors,
                     color: themeColors.textLight,
                     borderColor: themeColors.border,
                     backgroundColor: themeColors.surface,
-                    focusRingColor: themeColors.accent
                   }}
                   autoFocus
                 />
@@ -429,7 +449,6 @@ const PublicRegistry = ({ registry, items, isPreview = false, customThemeColors,
                     color: themeColors.textMuted,
                     borderColor: themeColors.border,
                     backgroundColor: themeColors.surface,
-                    focusRingColor: themeColors.accent
                   }}
                   rows={3}
                   autoFocus
@@ -522,8 +541,7 @@ const PublicRegistry = ({ registry, items, isPreview = false, customThemeColors,
                 style={{ 
                   color: themeColors.textMuted,
                   borderColor: themeColors.border,
-                  backgroundColor: themeColors.surface,
-                  focusRingColor: themeColors.accent
+                  backgroundColor: themeColors.surface
                 }}
                 rows={3}
                 autoFocus
@@ -610,13 +628,79 @@ const PublicRegistry = ({ registry, items, isPreview = false, customThemeColors,
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
-              {categoryItems.map((item) => (
-                <button
+              {categoryItems.map((item, index) => {
+                const isDragged = draggedItemId === item.id;
+                const isDragOver = dragOverIndex?.category === category && dragOverIndex?.index === index && draggedItemId !== item.id;
+                
+                return (
+                <div
                   key={item.id}
-                  onClick={() => !isPreview && !item.is_fulfilled && setSelectedItem(item)}
-                  className="group text-left hover-lift"
-                  disabled={isPreview || item.is_fulfilled}
+                  draggable={isPreview && onDragStart ? true : false}
+                  onDragStart={(e) => {
+                    if (isPreview && onDragStart) {
+                      onDragStart(e, item.id);
+                    }
+                  }}
+                  onDragOver={(e) => {
+                    if (isPreview && onDragOver) {
+                      e.preventDefault();
+                      onDragOver(e, category, index);
+                    }
+                  }}
+                  onDrop={(e) => {
+                    if (isPreview && onDrop) {
+                      e.preventDefault();
+                      onDrop(e, category, index);
+                    }
+                  }}
+                  className={`group relative ${isPreview ? 'cursor-move' : ''} ${isDragged ? 'opacity-30 scale-95' : isDragOver ? 'scale-105' : ''} transition-all`}
                 >
+                  {isPreview && onDragStart && (
+                    <div className="absolute -left-2 top-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <GripVertical 
+                        className="w-5 h-5" 
+                        style={{ color: themeColors.textMuted }}
+                        strokeWidth={1.5}
+                      />
+                    </div>
+                  )}
+                  {isPreview && (onEditItem || onDeleteItem) && (
+                    <div className="absolute -right-2 top-4 z-10 flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {onEditItem && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onEditItem(item);
+                          }}
+                          className="p-1.5 rounded-full backdrop-blur-md shadow-lg"
+                          style={{ backgroundColor: `${themeColors.surfaceElevated}E6` }}
+                          title="Edit item"
+                        >
+                          <Edit2 className="w-4 h-4" style={{ color: themeColors.text }} strokeWidth={1.5} />
+                        </button>
+                      )}
+                      {onDeleteItem && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm(`Delete "${item.title}"?`)) {
+                              onDeleteItem(item.id);
+                            }
+                          }}
+                          className="p-1.5 rounded-full backdrop-blur-md shadow-lg"
+                          style={{ backgroundColor: `${themeColors.surfaceElevated}E6` }}
+                          title="Delete item"
+                        >
+                          <Trash2 className="w-4 h-4" style={{ color: '#dc2626' }} strokeWidth={1.5} />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  <button
+                    onClick={() => !isPreview && !item.is_fulfilled && setSelectedItem(item)}
+                    className="w-full text-left hover-lift"
+                    disabled={isPreview || item.is_fulfilled}
+                  >
                   <div 
                     className="aspect-[4/5] mb-4 overflow-hidden relative rounded-2xl shadow-soft hover:shadow-medium transition-all duration-500"
                     style={{ backgroundColor: themeColors.surface }}
@@ -738,8 +822,33 @@ const PublicRegistry = ({ registry, items, isPreview = false, customThemeColors,
                     )}
                   </div>
                 </button>
-              ))}
+                </div>
+              );
+              })}
             </div>
+            {isPreview && onAddItem && (
+              <button
+                onClick={() => onAddItem(category)}
+                className="mt-6 w-full border-2 border-dashed rounded-2xl p-8 text-center hover:border-solid transition-all group"
+                style={{
+                  borderColor: themeColors.border,
+                  backgroundColor: themeColors.surface,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = themeColors.accent;
+                  e.currentTarget.style.backgroundColor = themeColors.surfaceElevated;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = themeColors.border;
+                  e.currentTarget.style.backgroundColor = themeColors.surface;
+                }}
+              >
+                <Plus className="w-6 h-6 mx-auto mb-2" style={{ color: themeColors.textMuted }} strokeWidth={1.5} />
+                <span className="text-sm font-medium" style={{ color: themeColors.textMuted }}>
+                  Add Item
+                </span>
+              </button>
+            )}
           </section>
         ))
         ) : (

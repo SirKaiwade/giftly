@@ -53,7 +53,7 @@ const ItemEditModal = ({ item, onSave, onClose }: ItemEditModalProps) => {
     try {
       // Add a timeout wrapper to ensure we don't hang forever
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Request timed out after 25 seconds')), 25000);
+        setTimeout(() => reject(new Error('Request timed out after 15 seconds')), 15000);
       });
 
       const fetchPromise = fetchOpenGraphData(formData.external_link);

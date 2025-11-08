@@ -97,74 +97,94 @@ export const fetchOpenGraphData = async (url: string): Promise<OpenGraphData> =>
   let html = '';
   const errors: string[] = [];
 
-  // Try each proxy service until one works
-  for (let i = 0; i < proxyServices.length; i++) {
-    const proxyUrl = proxyServices[i];
-    const proxyName = ['allorigins.win', 'corsproxy.io', 'codetabs.com'][i];
+  // Try all proxy services in parallel - first one to succeed wins
+  const proxyNames = ['allorigins.win', 'corsproxy.io', 'codetabs.com'];
+  const proxyPromises = proxyServices.map((proxyUrl, i) => {
+    const proxyName = proxyNames[i];
     
-    try {
-      console.log(`[OpenGraph] Trying proxy ${i + 1}/${proxyServices.length}: ${proxyName}`);
-      
+    return (async () => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
-        console.log(`[OpenGraph] Timeout after 8s for ${proxyName}`);
+        console.log(`[OpenGraph] Timeout after 5s for ${proxyName}`);
         controller.abort();
-      }, 8000); // 8 second timeout
+      }, 5000); // Reduced to 5 second timeout for faster failure
       
-      const fetchStartTime = Date.now();
-      const response = await fetch(proxyUrl, {
-        signal: controller.signal,
-      });
-      const fetchDuration = Date.now() - fetchStartTime;
-      
-      clearTimeout(timeoutId);
-      console.log(`[OpenGraph] ${proxyName} responded in ${fetchDuration}ms with status ${response.status}`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      // Check content type to determine if it's JSON or HTML
-      const contentType = response.headers.get('content-type') || '';
-      console.log(`[OpenGraph] ${proxyName} content-type: ${contentType}`);
-      
-      const readStartTime = Date.now();
-      if (contentType.includes('application/json')) {
-        const data = await response.json();
-        const readDuration = Date.now() - readStartTime;
-        console.log(`[OpenGraph] ${proxyName} parsed JSON in ${readDuration}ms, keys:`, Object.keys(data));
+      try {
+        console.log(`[OpenGraph] Trying proxy ${i + 1}/${proxyServices.length}: ${proxyName}`);
+        const fetchStartTime = Date.now();
+        const response = await fetch(proxyUrl, {
+          signal: controller.signal,
+        });
+        const fetchDuration = Date.now() - fetchStartTime;
         
-        // Handle different JSON response formats
-        if (data.contents) {
-          html = data.contents;
-        } else if (typeof data === 'string') {
-          html = data;
-        } else {
-          throw new Error('Unexpected JSON response format');
+        clearTimeout(timeoutId);
+        console.log(`[OpenGraph] ${proxyName} responded in ${fetchDuration}ms with status ${response.status}`);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
-      } else {
-        // Assume HTML/text response (e.g., corsproxy.io returns HTML directly)
-        html = await response.text();
-        const readDuration = Date.now() - readStartTime;
-        console.log(`[OpenGraph] ${proxyName} read HTML in ${readDuration}ms, length: ${html.length}`);
-      }
+        
+        // Check content type to determine if it's JSON or HTML
+        const contentType = response.headers.get('content-type') || '';
+        console.log(`[OpenGraph] ${proxyName} content-type: ${contentType}`);
+        
+        const readStartTime = Date.now();
+        let responseHtml = '';
+        if (contentType.includes('application/json')) {
+          const data = await response.json();
+          const readDuration = Date.now() - readStartTime;
+          console.log(`[OpenGraph] ${proxyName} parsed JSON in ${readDuration}ms, keys:`, Object.keys(data));
+          
+          // Handle different JSON response formats
+          if (data.contents) {
+            responseHtml = data.contents;
+          } else if (typeof data === 'string') {
+            responseHtml = data;
+          } else {
+            throw new Error('Unexpected JSON response format');
+          }
+        } else {
+          // Assume HTML/text response (e.g., corsproxy.io returns HTML directly)
+          responseHtml = await response.text();
+          const readDuration = Date.now() - readStartTime;
+          console.log(`[OpenGraph] ${proxyName} read HTML in ${readDuration}ms, length: ${responseHtml.length}`);
+        }
 
-      if (!html || html.length < 100) {
-        throw new Error('Response too short or empty');
-      }
+        if (!responseHtml || responseHtml.length < 100) {
+          throw new Error('Response too short or empty');
+        }
 
-      // Success! Break out of the loop
-      console.log(`[OpenGraph] Successfully fetched with ${proxyName}`);
-      break;
-    } catch (error: any) {
-      const errorMsg = error.name === 'AbortError' 
-        ? `Timeout after 8s`
-        : error.message || 'Unknown error';
-      errors.push(`${proxyName}: ${errorMsg}`);
-      console.error(`[OpenGraph] ${proxyName} failed:`, errorMsg, error);
-      // Try next proxy service
-      continue;
+        // Success!
+        console.log(`[OpenGraph] Successfully fetched with ${proxyName}`);
+        return { html: responseHtml, proxyName };
+      } catch (error: any) {
+        clearTimeout(timeoutId);
+        const errorMsg = error.name === 'AbortError' 
+          ? `Timeout after 5s`
+          : error.message || 'Unknown error';
+        console.error(`[OpenGraph] ${proxyName} failed:`, errorMsg);
+        throw { proxyName, error: errorMsg };
+      }
+    })();
+  });
+
+  // Race all proxies - first successful one wins
+  try {
+    const results = await Promise.allSettled(proxyPromises);
+    
+    // Find first successful result
+    for (const result of results) {
+      if (result.status === 'fulfilled' && result.value) {
+        html = result.value.html;
+        console.log(`[OpenGraph] Using result from ${result.value.proxyName}`);
+        break;
+      } else if (result.status === 'rejected') {
+        const rejection = result.reason as { proxyName: string; error: string };
+        errors.push(`${rejection.proxyName}: ${rejection.error}`);
+      }
     }
+  } catch (error) {
+    console.error('[OpenGraph] Unexpected error in parallel fetch:', error);
   }
 
   if (!html) {
