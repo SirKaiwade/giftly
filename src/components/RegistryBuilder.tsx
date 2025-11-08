@@ -160,7 +160,7 @@ const CompactPreview = ({ registry, items }: { registry: Partial<Registry>; item
                             >
                               {item.title}
                             </h3>
-                            {item.item_type === 'cash' ? (
+                            {(item.item_type === 'cash' || item.item_type === 'partial' || item.item_type === 'charity') ? (
                               <div>
                                 <div className="flex items-baseline justify-between mb-0.5">
                                   <span 

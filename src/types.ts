@@ -2,7 +2,7 @@ export type EventType = 'wedding' | 'baby' | 'birthday' | 'housewarming' | 'grad
 
 export type Theme = 'minimal' | 'pastel' | 'dark' | 'floral' | 'gold' | 'christmas' | 'custom';
 
-export type ItemType = 'cash' | 'product' | 'service' | 'experience' | 'charity';
+export type ItemType = 'cash' | 'product' | 'service' | 'experience' | 'charity' | 'partial';
 
 export const EVENT_TYPES: { value: EventType; label: string; emoji: string }[] = [
   { value: 'wedding', label: 'Wedding', emoji: '💍' },
@@ -183,12 +183,55 @@ export const THEMES: {
   },
 ];
 
-export const ITEM_TYPES: { value: ItemType; label: string }[] = [
-  { value: 'cash', label: 'Cash Fund' },
-  { value: 'product', label: 'Physical Product' },
-  { value: 'service', label: 'Service/Time' },
-  { value: 'experience', label: 'Experience' },
-  { value: 'charity', label: 'Charity Donation' },
+export const ITEM_TYPES: { 
+  value: ItemType; 
+  label: string; 
+  description: string; 
+  emoji: string;
+  icon: string;
+}[] = [
+  { 
+    value: 'cash', 
+    label: 'Cash Fund', 
+    description: 'Collect money for a specific goal (honeymoon, down payment, etc.)',
+    emoji: '💰',
+    icon: 'DollarSign'
+  },
+  { 
+    value: 'product', 
+    label: 'Product', 
+    description: 'A specific item from any store (Amazon, Target, etc.)',
+    emoji: '📦',
+    icon: 'Package'
+  },
+  { 
+    value: 'experience', 
+    label: 'Experience', 
+    description: 'Activities, classes, or memorable moments',
+    emoji: '🎭',
+    icon: 'Sparkles'
+  },
+  { 
+    value: 'service', 
+    label: 'Time Donation', 
+    description: 'Time-based contributions (baby sitting hours, help with tasks, etc.)',
+    emoji: '⏰',
+    icon: 'Clock'
+  },
+  { 
+    value: 'charity', 
+    label: 'Charity Donation', 
+    description: 'Support a cause or organization',
+    emoji: '❤️',
+    icon: 'Heart'
+  },
+  { 
+    value: 'partial', 
+    label: 'Custom', 
+    description: 'Big item where people can contribute any amount (dream couch, car, etc.)',
+    emoji: '🎁',
+    icon: 'Gift'
+  },
 ];
 
 export const CATEGORIES = [

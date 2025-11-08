@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useRegistry } from '../contexts/RegistryContext';
-import { GripVertical, Plus, Edit2, Trash2, Layout, Grid, Columns, Layers, ChevronDown, ChevronUp, X, FolderPlus, Settings, Calendar, Type, Image as ImageIcon, AlignLeft, BarChart3, Palette, Pencil, Share2, Sliders, Eye, EyeOff } from 'lucide-react';
+import { GripVertical, Plus, Edit2, Trash2, Layout, Grid, Columns, Layers, ChevronDown, ChevronRight, X, FolderPlus, Settings, Calendar, Type, Image as ImageIcon, AlignLeft, BarChart3, Palette, Pencil, Share2, Sliders, Eye, EyeOff } from 'lucide-react';
 import { RegistryItem, Contribution, supabase } from '../lib/supabase';
 import PublicRegistry from './PublicRegistry';
 import ItemEditModal from './ItemEditModal';
@@ -72,13 +72,17 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
     surfaceElevated: string;
   } | null>(null);
   const [isLoadingRegistry, setIsLoadingRegistry] = useState(false);
-  const [showCustomizationPanel, setShowCustomizationPanel] = useState(false);
   const [customizationTab, setCustomizationTab] = useState<'hero' | 'typography' | 'colors' | 'layout' | 'sections'>('hero');
   const [heroImageHeight, setHeroImageHeight] = useState(60); // Viewport height percentage
   const [heroOverlayOpacity, setHeroOverlayOpacity] = useState(0.2);
   const [sectionSpacing, setSectionSpacing] = useState(6); // Tailwind spacing units
   const [itemGridColumns, setItemGridColumns] = useState(3);
   const [hiddenSections, setHiddenSections] = useState<Set<string>>(new Set());
+  // Typography state - only font families
+  const [titleFontFamily, setTitleFontFamily] = useState('sans');
+  const [subtitleFontFamily, setSubtitleFontFamily] = useState('sans');
+  const [bodyFontFamily, setBodyFontFamily] = useState('sans');
+  const [openFontDropdown, setOpenFontDropdown] = useState<'title' | 'subtitle' | 'body' | null>(null);
 
   // Function to save registry with a given name
   const saveRegistryWithName = async (registryTitle: string) => {
@@ -122,6 +126,9 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
           description: currentRegistry.description || '',
           guestbook_enabled: currentRegistry.guestbook_enabled ?? true,
           is_published: currentRegistry.is_published ?? false,
+          title_font_family: titleFontFamily,
+          subtitle_font_family: subtitleFontFamily,
+          body_font_family: bodyFontFamily,
         })
         .select('id, title, event_type')
         .single();
@@ -330,7 +337,7 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
             .single();
 
           console.log('[CanvasEditor] Registry data loaded:', { hasData: !!data, error });
-          if (!error && data) {
+            if (!error && data) {
             updateRegistry({
               id: data.id,
               slug: data.slug,
@@ -345,6 +352,11 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
               guestbook_enabled: data.guestbook_enabled ?? true,
               is_published: data.is_published ?? false,
             });
+            
+            // Load typography settings
+            setTitleFontFamily((data as any).title_font_family || 'sans');
+            setSubtitleFontFamily((data as any).subtitle_font_family || 'sans');
+            setBodyFontFamily((data as any).body_font_family || 'sans');
             
             // Load custom theme colors if they exist
             if (data.theme === 'custom' && (data as any).custom_theme_colors) {
@@ -406,21 +418,48 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
         return;
       }
 
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('full_name, profile_picture_url')
-        .eq('user_id', user.id)
-        .single();
+      try {
+        const { data, error } = await supabase
+          .from('user_profiles')
+          .select('full_name, profile_picture_url')
+          .eq('user_id', user.id)
+          .single();
 
-      if (!error && data) {
-        setUserProfile(data);
-      } else {
+        if (error) {
+          console.log('[CanvasEditor] Profile fetch error:', error);
+          // If profile doesn't exist, set null values
+          setUserProfile({ full_name: null, profile_picture_url: null });
+        } else if (data) {
+          console.log('[CanvasEditor] Profile loaded:', data);
+          setUserProfile(data);
+        } else {
+          setUserProfile({ full_name: null, profile_picture_url: null });
+        }
+      } catch (err) {
+        console.error('[CanvasEditor] Error fetching profile:', err);
         setUserProfile({ full_name: null, profile_picture_url: null });
       }
     };
 
     fetchUserProfile();
   }, [user]);
+
+  // Close font dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.font-dropdown-wrapper')) {
+        setOpenFontDropdown(null);
+      }
+    };
+
+    if (openFontDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [openFontDropdown]);
 
   // Auto-save registry changes to database
   useEffect(() => {
@@ -446,6 +485,9 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
             hero_image_position: currentRegistry.hero_image_position || 'center',
             description: currentRegistry.description || '',
             guestbook_enabled: currentRegistry.guestbook_enabled ?? true,
+            title_font_family: titleFontFamily,
+            subtitle_font_family: subtitleFontFamily,
+            body_font_family: bodyFontFamily,
             event_type: currentRegistry.event_type || 'wedding',
             theme: currentRegistry.theme || 'minimal',
             updated_at: new Date().toISOString(),
@@ -552,10 +594,13 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
     groupedItems[category].sort((a, b) => a.priority - b.priority);
   });
 
-  const categories = Object.keys(groupedItems).sort();
+  // Combine categories from items and active sections
+  const categoriesFromItems = Object.keys(groupedItems);
+  const allCategories = new Set([...categoriesFromItems, ...Array.from(activeSections)]);
+  const categories = Array.from(allCategories).sort();
   
   // Get all available categories (including ones not yet used)
-  const availableCategories = CATEGORIES.filter(cat => !categories.includes(cat));
+  const availableCategories = CATEGORIES.filter(cat => !allCategories.has(cat));
 
   const handleDragStart = (e: React.DragEvent, itemId: string) => {
     setDraggedItem(itemId);
@@ -1008,18 +1053,6 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
                 <Settings className="w-4 h-4" strokeWidth={1.5} />
                 <span className="hidden sm:inline">Event Info</span>
               </button>
-              <button
-                onClick={() => setShowCustomizationPanel(!showCustomizationPanel)}
-                className={`px-4 py-2 text-sm transition-colors flex items-center space-x-2 ${
-                  showCustomizationPanel 
-                    ? 'bg-neutral-900 text-white hover:bg-neutral-800' 
-                    : 'text-neutral-600 hover:text-neutral-900'
-                }`}
-                title="Customize Design"
-              >
-                <Sliders className="w-4 h-4" strokeWidth={1.5} />
-                <span className="hidden sm:inline">Customize</span>
-              </button>
               {currentRegistry?.slug && (
                 <button
                   onClick={() => setShowShareModal(true)}
@@ -1076,7 +1109,12 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
                   <div className="text-sm font-medium text-neutral-900 group-hover:text-neutral-700">
                     {userProfile?.full_name || user.email?.split('@')[0] || 'User'}
                   </div>
-                  <div className="text-xs text-neutral-500">{user.email}</div>
+                  {userProfile?.full_name && (
+                    <div className="text-xs text-neutral-500">{user.email}</div>
+                  )}
+                  {!userProfile?.full_name && user.email && (
+                    <div className="text-xs text-neutral-400 italic">Set up your profile</div>
+                  )}
                 </div>
               </button>
             )}
@@ -1087,133 +1125,10 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar */}
+        {/* Left Sidebar - Functional (Sections & Items) */}
         {!fullScreenPreview && (
           <div className="w-80 border-r border-neutral-200 bg-white overflow-y-auto">
             <div className="p-6 space-y-6">
-            {/* Theme Selector */}
-            <div>
-              <div className="flex items-center space-x-2 mb-3">
-                <Palette className="w-4 h-4 text-neutral-600" strokeWidth={1.5} />
-                <h2 className="text-sm font-semibold text-neutral-900 uppercase tracking-wide">Theme</h2>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                {THEMES.map((theme) => {
-                  const isSelected = currentRegistry?.theme === theme.value;
-                  const isMinimal = theme.value === 'minimal';
-                  const isCustom = theme.value === 'custom';
-                  
-                  return (
-                    <button
-                      key={theme.value}
-                      onClick={() => {
-                        updateRegistry({ theme: theme.value });
-                        if (theme.value === 'custom' && !customThemeColors) {
-                          // Initialize custom colors with default custom theme colors
-                          const defaultCustom = THEMES.find(t => t.value === 'custom');
-                          setCustomThemeColors(defaultCustom?.colors || null);
-                        }
-                        if (selectedRegistryId && user) {
-                          supabase
-                            .from('registries')
-                            .update({ theme: theme.value, updated_at: new Date().toISOString() })
-                            .eq('id', selectedRegistryId);
-                        }
-                        if (theme.value === 'custom') {
-                          setShowCustomThemeEditor(true);
-                        }
-                      }}
-                      className={`relative rounded-lg transition-all overflow-hidden ${
-                        isSelected 
-                          ? 'shadow-lg' 
-                          : 'hover:shadow-md'
-                      } ${isCustom ? 'p-2.5' : 'p-3'}`}
-                      style={{
-                        backgroundColor: isMinimal ? '#ffffff' : theme.colors.surface,
-                        border: isMinimal && !isSelected ? '1px solid #e5e5e5' : isSelected ? `2px solid ${theme.colors.accent}` : 'none',
-                        boxShadow: isSelected ? `0 0 0 2px ${theme.colors.accent}20, 0 10px 15px -3px rgba(0, 0, 0, 0.1)` : undefined,
-                      }}
-                      title={theme.label}
-                    >
-                      {/* Color gradient background for non-minimal themes */}
-                      {!isMinimal && !isCustom && (
-                        <div 
-                          className="absolute inset-0 opacity-30"
-                          style={{
-                            background: `linear-gradient(135deg, ${theme.colors.accent}15 0%, ${theme.colors.background}15 50%, ${theme.colors.accent}15 100%)`
-                          }}
-                        />
-                      )}
-                      
-                      {isCustom ? (
-                        <div className="relative flex flex-col items-center space-y-1.5">
-                          <div className="w-full h-8 rounded-md border-2 border-dashed flex items-center justify-center"
-                            style={{ 
-                              borderColor: isSelected ? theme.colors.accent : '#d4d4d4',
-                              backgroundColor: theme.colors.surface
-                            }}
-                          >
-                            <Palette className="w-4 h-4" style={{ color: theme.colors.accent }} strokeWidth={1.5} />
-                          </div>
-                          <span 
-                            className="text-[10px] font-semibold leading-tight text-center"
-                            style={{ color: theme.colors.text }}
-                          >
-                            Custom
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="relative flex flex-col items-center space-y-2">
-                          <div className="flex space-x-1.5">
-                            <div 
-                              className="w-4 h-4 rounded-full shadow-sm"
-                              style={{ 
-                                backgroundColor: theme.colors.accent,
-                                border: isMinimal ? '1px solid rgba(0,0,0,0.1)' : 'none'
-                              }}
-                            />
-                            <div 
-                              className="w-4 h-4 rounded-full shadow-sm"
-                              style={{ 
-                                backgroundColor: theme.colors.background,
-                                border: isMinimal ? '1px solid rgba(0,0,0,0.1)' : 'none'
-                              }}
-                            />
-                            <div 
-                              className="w-4 h-4 rounded-full shadow-sm"
-                              style={{ 
-                                backgroundColor: theme.colors.surface,
-                                border: isMinimal ? '1px solid rgba(0,0,0,0.1)' : 'none'
-                              }}
-                            />
-                          </div>
-                          <span 
-                            className="text-[10px] font-semibold leading-tight text-center"
-                            style={{ color: theme.colors.text }}
-                          >
-                            {theme.label.split(' ')[0]}
-                          </span>
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Custom Theme Editor Button */}
-            {currentRegistry?.theme === 'custom' && (
-              <button
-                onClick={() => setShowCustomThemeEditor(true)}
-                className="w-full px-3 py-2 text-xs font-medium text-neutral-700 bg-neutral-50 hover:bg-neutral-100 rounded-lg transition-colors flex items-center justify-center space-x-1.5"
-              >
-                <Palette className="w-3.5 h-3.5" strokeWidth={1.5} />
-                <span>Customize Colors</span>
-              </button>
-            )}
-
-            {/* Divider */}
-            <div className="border-t border-neutral-200" />
 
             {/* Sections & Items */}
             <div>
@@ -1280,12 +1195,26 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
                         }}
                       >
                         <div className="flex items-center space-x-2 flex-1 min-w-0">
-                          {isExpanded ? (
-                            <ChevronDown className="w-3.5 h-3.5 text-neutral-500 flex-shrink-0" />
-                          ) : (
-                            <ChevronUp className="w-3.5 h-3.5 text-neutral-500 flex-shrink-0" />
-                          )}
-                          <span className="text-sm font-medium text-neutral-900 truncate">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleSection(category);
+                            }}
+                            className="p-0.5 hover:bg-neutral-200 rounded transition-colors"
+                          >
+                            {isExpanded ? (
+                              <ChevronDown className="w-3.5 h-3.5 text-neutral-500 flex-shrink-0" strokeWidth={1.5} />
+                            ) : (
+                              <ChevronRight className="w-3.5 h-3.5 text-neutral-500 flex-shrink-0" strokeWidth={1.5} />
+                            )}
+                          </button>
+                          <span 
+                            className="text-sm font-medium text-neutral-900 truncate cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedSection(category);
+                            }}
+                          >
                             {CATEGORY_LABELS[category] || category.charAt(0).toUpperCase() + category.slice(1)}
                           </span>
                           <span className="text-xs text-neutral-500">({items.length})</span>
@@ -1296,23 +1225,21 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
                               e.stopPropagation();
                               handleAddItem(category);
                             }}
-                            className="p-1.5 hover:bg-neutral-200 rounded transition-colors opacity-0 group-hover:opacity-100"
+                            className="p-1 hover:bg-neutral-200 rounded transition-colors opacity-0 group-hover:opacity-100"
                             title="Add item"
                           >
                             <Plus className="w-3.5 h-3.5 text-neutral-600" strokeWidth={1.5} />
                           </button>
-                          {items.length > 0 && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleRemoveSection(category);
-                              }}
-                              className="p-1.5 hover:bg-red-50 rounded transition-colors opacity-0 group-hover:opacity-100"
-                              title="Remove section"
-                            >
-                              <X className="w-3.5 h-3.5 text-neutral-600 hover:text-red-600" strokeWidth={1.5} />
-                            </button>
-                          )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveSection(category);
+                            }}
+                            className="p-1 hover:bg-red-50 rounded transition-colors opacity-60 group-hover:opacity-100"
+                            title="Remove section"
+                          >
+                            <X className="w-3.5 h-3.5 text-neutral-500 hover:text-red-600" strokeWidth={1.5} />
+                          </button>
                         </div>
                       </div>
                       
@@ -1364,23 +1291,196 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
           </div>
         )}
 
-        {/* Customization Panel */}
-        {showCustomizationPanel && !fullScreenPreview && (
-          <div className="w-80 border-r border-neutral-200 bg-gradient-to-b from-neutral-50 to-white overflow-y-auto">
+        {/* Live Preview - Centered between sidebars */}
+        {!fullScreenPreview && (
+          <div className="flex-1 overflow-y-auto bg-neutral-100">
+            <div 
+              className="w-full h-full flex items-start justify-center"
+              style={{ 
+                transform: 'scale(0.8)',
+                transformOrigin: 'top center',
+                minHeight: '125%' // Compensate for scale
+              }}
+            >
+              <div className="w-full max-w-full">
+                <PublicRegistry
+              registry={{
+                id: currentRegistry?.id || '',
+                user_id: user?.id || '',
+                slug: currentRegistry?.slug || '',
+                event_type: currentRegistry?.event_type || 'wedding',
+                theme: currentRegistry?.theme || 'minimal',
+                title: currentRegistry?.title || '',
+                subtitle: currentRegistry?.subtitle || '',
+                event_date: currentRegistry?.event_date || '',
+                hero_image_url: currentRegistry?.hero_image_url || '',
+                hero_image_position: currentRegistry?.hero_image_position || 'center',
+                description: currentRegistry?.description || '',
+                guestbook_enabled: currentRegistry?.guestbook_enabled ?? true,
+                is_published: currentRegistry?.is_published ?? false,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              }}
+              items={currentItems.sort((a, b) => a.priority - b.priority)}
+              isPreview={true}
+              customThemeColors={customThemeColors}
+              heroImageHeight={heroImageHeight}
+              heroOverlayOpacity={heroOverlayOpacity}
+              sectionSpacing={sectionSpacing}
+              itemGridColumns={itemGridColumns}
+              hiddenSections={hiddenSections}
+              activeSections={activeSections}
+              titleFontFamily={titleFontFamily}
+              subtitleFontFamily={subtitleFontFamily}
+              bodyFontFamily={bodyFontFamily}
+              onUpdateRegistry={updateRegistry}
+              onEditItem={setEditingItem}
+              onAddItem={handleAddItem}
+              onDeleteItem={removeItem}
+              onDragStart={handleDragStart}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+              draggedItemId={draggedItem}
+              dragOverIndex={dragOverIndex}
+            />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Right Sidebar - Customization */}
+        {!fullScreenPreview && (
+          <div className="w-80 border-l border-neutral-200 bg-gradient-to-b from-neutral-50 to-white overflow-y-auto">
             <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-neutral-200 px-4 py-3 z-10 flex items-center justify-between shadow-sm">
               <div className="flex items-center space-x-2">
                 <Sliders className="w-4 h-4 text-neutral-600" strokeWidth={1.5} />
                 <h2 className="text-sm font-semibold text-neutral-900">Customize</h2>
               </div>
-              <button
-                onClick={() => setShowCustomizationPanel(false)}
-                className="p-1.5 hover:bg-neutral-100 rounded-lg transition-colors"
-              >
-                <X className="w-4 h-4" strokeWidth={1.5} />
-              </button>
             </div>
 
             <div className="p-4">
+              {/* Theme Selector - At the top */}
+              <div className="mb-6">
+                <div className="flex items-center space-x-2 mb-3">
+                  <Palette className="w-4 h-4 text-neutral-600" strokeWidth={1.5} />
+                  <h3 className="text-xs font-semibold text-neutral-900 uppercase tracking-wide">Theme</h3>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {THEMES.map((theme) => {
+                    const isSelected = currentRegistry?.theme === theme.value;
+                    const isMinimal = theme.value === 'minimal';
+                    const isCustom = theme.value === 'custom';
+                    
+                    return (
+                      <button
+                        key={theme.value}
+                        onClick={() => {
+                          updateRegistry({ theme: theme.value });
+                          if (theme.value === 'custom' && !customThemeColors) {
+                            const defaultCustom = THEMES.find(t => t.value === 'custom');
+                            setCustomThemeColors(defaultCustom?.colors || null);
+                          }
+                          if (selectedRegistryId && user) {
+                            supabase
+                              .from('registries')
+                              .update({ theme: theme.value, updated_at: new Date().toISOString() })
+                              .eq('id', selectedRegistryId);
+                          }
+                          if (theme.value === 'custom') {
+                            setShowCustomThemeEditor(true);
+                          }
+                        }}
+                        className={`relative rounded-lg transition-all overflow-hidden ${
+                          isSelected 
+                            ? 'shadow-lg' 
+                            : 'hover:shadow-md'
+                        } ${isCustom ? 'p-2.5' : 'p-3'}`}
+                        style={{
+                          backgroundColor: isMinimal ? '#ffffff' : theme.colors.surface,
+                          border: isMinimal && !isSelected ? '1px solid #e5e5e5' : isSelected ? `2px solid ${theme.colors.accent}` : 'none',
+                          boxShadow: isSelected ? `0 0 0 2px ${theme.colors.accent}20, 0 10px 15px -3px rgba(0, 0, 0, 0.1)` : undefined,
+                        }}
+                        title={theme.label}
+                      >
+                        {!isMinimal && !isCustom && (
+                          <div 
+                            className="absolute inset-0 opacity-30"
+                            style={{
+                              background: `linear-gradient(135deg, ${theme.colors.accent}15 0%, ${theme.colors.background}15 50%, ${theme.colors.accent}15 100%)`
+                            }}
+                          />
+                        )}
+                        
+                        {isCustom ? (
+                          <div className="relative flex flex-col items-center space-y-1.5">
+                            <div className="w-full h-8 rounded-md border-2 border-dashed flex items-center justify-center"
+                              style={{ 
+                                borderColor: isSelected ? theme.colors.accent : '#d4d4d4',
+                                backgroundColor: theme.colors.surface
+                              }}
+                            >
+                              <Palette className="w-4 h-4" style={{ color: theme.colors.accent }} strokeWidth={1.5} />
+                            </div>
+                            <span 
+                              className="text-[10px] font-semibold leading-tight text-center"
+                              style={{ color: theme.colors.text }}
+                            >
+                              Custom
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="relative flex flex-col items-center space-y-2">
+                            <div className="flex space-x-1.5">
+                              <div 
+                                className="w-4 h-4 rounded-full shadow-sm"
+                                style={{ 
+                                  backgroundColor: theme.colors.accent,
+                                  border: isMinimal ? '1px solid rgba(0,0,0,0.1)' : 'none'
+                                }}
+                              />
+                              <div 
+                                className="w-4 h-4 rounded-full shadow-sm"
+                                style={{ 
+                                  backgroundColor: theme.colors.background,
+                                  border: isMinimal ? '1px solid rgba(0,0,0,0.1)' : 'none'
+                                }}
+                              />
+                              <div 
+                                className="w-4 h-4 rounded-full shadow-sm"
+                                style={{ 
+                                  backgroundColor: theme.colors.surface,
+                                  border: isMinimal ? '1px solid rgba(0,0,0,0.1)' : 'none'
+                                }}
+                              />
+                            </div>
+                            <span 
+                              className="text-[10px] font-semibold leading-tight text-center"
+                              style={{ color: theme.colors.text }}
+                            >
+                              {theme.label.split(' ')[0]}
+                            </span>
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Custom Theme Editor Button */}
+              {currentRegistry?.theme === 'custom' && (
+                <button
+                  onClick={() => setShowCustomThemeEditor(true)}
+                  className="w-full px-3 py-2 text-xs font-medium text-neutral-700 bg-neutral-50 hover:bg-neutral-100 rounded-lg transition-colors flex items-center justify-center space-x-1.5 mb-6"
+                >
+                  <Palette className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  <span>Customize Colors</span>
+                </button>
+              )}
+
+              {/* Divider */}
+              <div className="border-t border-neutral-200 mb-4" />
+
               {/* Tabs - More compact and intuitive */}
               <div className="flex flex-wrap gap-1 mb-4">
                 {[
@@ -1501,52 +1601,197 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
 
               {/* Typography Customization */}
               {customizationTab === 'typography' && (
-                <div className="space-y-5">
-                  <div>
-                    <label className="block text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
-                      Title Size
-                    </label>
-                    <select
-                      className="w-full px-2.5 py-1.5 text-xs border border-neutral-300 rounded-md focus:ring-1 focus:ring-neutral-900 focus:border-neutral-900 bg-white"
-                      defaultValue="display-1"
-                    >
-                      <option value="display-1">Display 1 (Largest)</option>
-                      <option value="display-2">Display 2</option>
-                      <option value="display-3">Display 3</option>
-                      <option value="text-4xl">4xl</option>
-                      <option value="text-3xl">3xl</option>
-                    </select>
-                  </div>
+                <div className="space-y-4">
+                  {/* Helper function to get font name */}
+                  {(() => {
+                    const getFontName = (font: string) => {
+                      switch (font) {
+                        case 'sans': return 'Sans Serif';
+                        case 'serif': return 'Serif';
+                        case 'mono': return 'Monospace';
+                        case 'display': return 'Display';
+                        case 'handwriting': return 'Handwriting';
+                        default: return 'Sans Serif';
+                      }
+                    };
+                    const getFontFamily = (font: string) => {
+                      switch (font) {
+                        case 'sans': return 'ui-sans-serif, system-ui, -apple-system, sans-serif';
+                        case 'serif': return 'ui-serif, Georgia, serif';
+                        case 'mono': return 'ui-monospace, "Courier New", monospace';
+                        case 'display': return 'ui-sans-serif, system-ui, -apple-system, sans-serif';
+                        case 'handwriting': return 'cursive, "Comic Sans MS", "Brush Script MT"';
+                        default: return 'ui-sans-serif, system-ui, -apple-system, sans-serif';
+                      }
+                    };
+                    const fonts = ['sans', 'serif', 'mono', 'display', 'handwriting'];
+                    
+                    return (
+                      <>
+                        {/* Title Font */}
+                        <div className="font-dropdown-wrapper">
+                          <label className="block text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
+                            Title Font
+                          </label>
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenFontDropdown(openFontDropdown === 'title' ? null : 'title');
+                              }}
+                              className={`w-full px-3 py-2.5 text-left text-xs border rounded-lg bg-white transition-all flex items-center justify-between ${
+                                openFontDropdown === 'title'
+                                  ? 'border-neutral-900 shadow-sm'
+                                  : 'border-neutral-300 hover:border-neutral-400'
+                              }`}
+                              style={{
+                                fontFamily: getFontFamily(titleFontFamily)
+                              }}
+                            >
+                              <span className="font-medium">{getFontName(titleFontFamily)}</span>
+                              <ChevronDown className={`w-4 h-4 text-neutral-500 transition-transform duration-200 ${openFontDropdown === 'title' ? 'rotate-180' : ''}`} />
+                            </button>
+                            {openFontDropdown === 'title' && (
+                              <div className="absolute z-20 w-full mt-1.5 border border-neutral-200 rounded-lg bg-white shadow-xl overflow-hidden transition-all duration-200">
+                                <div>
+                                  {fonts.map((font) => (
+                                    <button
+                                      key={font}
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setTitleFontFamily(font);
+                                        setOpenFontDropdown(null);
+                                      }}
+                                      className={`w-full px-3 py-2.5 text-left text-xs transition-all ${
+                                        titleFontFamily === font
+                                          ? 'bg-neutral-900 text-white'
+                                          : 'bg-white text-neutral-700 hover:bg-neutral-50'
+                                      } ${font !== fonts[fonts.length - 1] ? 'border-b border-neutral-100' : ''}`}
+                                      style={{
+                                        fontFamily: getFontFamily(font)
+                                      }}
+                                    >
+                                      <span className="font-medium">{getFontName(font)}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
-                      Body Font Size
-                    </label>
-                    <select
-                      className="w-full px-2.5 py-1.5 text-xs border border-neutral-300 rounded-md focus:ring-1 focus:ring-neutral-900 focus:border-neutral-900 bg-white"
-                      defaultValue="base"
-                    >
-                      <option value="sm">Small</option>
-                      <option value="base">Base</option>
-                      <option value="lg">Large</option>
-                    </select>
-                  </div>
+                        {/* Subtitle Font */}
+                        <div className="font-dropdown-wrapper">
+                          <label className="block text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
+                            Subtitle Font
+                          </label>
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenFontDropdown(openFontDropdown === 'subtitle' ? null : 'subtitle');
+                              }}
+                              className={`w-full px-3 py-2.5 text-left text-xs border rounded-lg bg-white transition-all flex items-center justify-between ${
+                                openFontDropdown === 'subtitle'
+                                  ? 'border-neutral-900 shadow-sm'
+                                  : 'border-neutral-300 hover:border-neutral-400'
+                              }`}
+                              style={{
+                                fontFamily: getFontFamily(subtitleFontFamily)
+                              }}
+                            >
+                              <span className="font-medium">{getFontName(subtitleFontFamily)}</span>
+                              <ChevronDown className={`w-4 h-4 text-neutral-500 transition-transform duration-200 ${openFontDropdown === 'subtitle' ? 'rotate-180' : ''}`} />
+                            </button>
+                            {openFontDropdown === 'subtitle' && (
+                              <div className="absolute z-20 w-full mt-1.5 border border-neutral-200 rounded-lg bg-white shadow-xl overflow-hidden transition-all duration-200">
+                                <div>
+                                  {fonts.map((font) => (
+                                    <button
+                                      key={font}
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSubtitleFontFamily(font);
+                                        setOpenFontDropdown(null);
+                                      }}
+                                      className={`w-full px-3 py-2.5 text-left text-xs transition-all ${
+                                        subtitleFontFamily === font
+                                          ? 'bg-neutral-900 text-white'
+                                          : 'bg-white text-neutral-700 hover:bg-neutral-50'
+                                      } ${font !== fonts[fonts.length - 1] ? 'border-b border-neutral-100' : ''}`}
+                                      style={{
+                                        fontFamily: getFontFamily(font)
+                                      }}
+                                    >
+                                      <span className="font-medium">{getFontName(font)}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
-                      Font Weight
-                    </label>
-                    <div className="grid grid-cols-3 gap-1.5">
-                      {['Light', 'Normal', 'Medium', 'Semibold', 'Bold'].map((weight) => (
-                        <button
-                          key={weight}
-                          className="px-2 py-1.5 text-[10px] border border-neutral-200 rounded-md hover:border-neutral-900 transition-colors bg-white"
-                        >
-                          {weight}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                        {/* Body Font */}
+                        <div className="font-dropdown-wrapper">
+                          <label className="block text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
+                            Body Font
+                          </label>
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenFontDropdown(openFontDropdown === 'body' ? null : 'body');
+                              }}
+                              className={`w-full px-3 py-2.5 text-left text-xs border rounded-lg bg-white transition-all flex items-center justify-between ${
+                                openFontDropdown === 'body'
+                                  ? 'border-neutral-900 shadow-sm'
+                                  : 'border-neutral-300 hover:border-neutral-400'
+                              }`}
+                              style={{
+                                fontFamily: getFontFamily(bodyFontFamily)
+                              }}
+                            >
+                              <span className="font-medium">{getFontName(bodyFontFamily)}</span>
+                              <ChevronDown className={`w-4 h-4 text-neutral-500 transition-transform duration-200 ${openFontDropdown === 'body' ? 'rotate-180' : ''}`} />
+                            </button>
+                            {openFontDropdown === 'body' && (
+                              <div className="absolute z-20 w-full mt-1.5 border border-neutral-200 rounded-lg bg-white shadow-xl overflow-hidden transition-all duration-200">
+                                <div>
+                                  {fonts.map((font) => (
+                                    <button
+                                      key={font}
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setBodyFontFamily(font);
+                                        setOpenFontDropdown(null);
+                                      }}
+                                      className={`w-full px-3 py-2.5 text-left text-xs transition-all ${
+                                        bodyFontFamily === font
+                                          ? 'bg-neutral-900 text-white'
+                                          : 'bg-white text-neutral-700 hover:bg-neutral-50'
+                                      } ${font !== fonts[fonts.length - 1] ? 'border-b border-neutral-100' : ''}`}
+                                      style={{
+                                        fontFamily: getFontFamily(font)
+                                      }}
+                                    >
+                                      <span className="font-medium">{getFontName(font)}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -1714,60 +1959,6 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
           </div>
         )}
 
-        {/* Live Preview - Full Width and Directly Editable */}
-        {!fullScreenPreview && (
-          <div className="flex-1 overflow-y-auto bg-neutral-100">
-            <div 
-              className="w-full h-full flex items-start justify-center"
-              style={{ 
-                transform: 'scale(0.8)',
-                transformOrigin: 'top center',
-                minHeight: '125%' // Compensate for scale
-              }}
-            >
-              <div className="w-full max-w-full">
-                <PublicRegistry
-              registry={{
-                id: currentRegistry?.id || '',
-                user_id: user?.id || '',
-                slug: currentRegistry?.slug || '',
-                event_type: currentRegistry?.event_type || 'wedding',
-                theme: currentRegistry?.theme || 'minimal',
-                title: currentRegistry?.title || '',
-                subtitle: currentRegistry?.subtitle || '',
-                event_date: currentRegistry?.event_date || '',
-                hero_image_url: currentRegistry?.hero_image_url || '',
-                hero_image_position: currentRegistry?.hero_image_position || 'center',
-                description: currentRegistry?.description || '',
-                guestbook_enabled: currentRegistry?.guestbook_enabled ?? true,
-                is_published: currentRegistry?.is_published ?? false,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              }}
-              items={currentItems.sort((a, b) => a.priority - b.priority)}
-              isPreview={true}
-              customThemeColors={customThemeColors}
-              heroImageHeight={heroImageHeight}
-              heroOverlayOpacity={heroOverlayOpacity}
-              sectionSpacing={sectionSpacing}
-              itemGridColumns={itemGridColumns}
-              hiddenSections={hiddenSections}
-              onUpdateRegistry={updateRegistry}
-              onEditItem={setEditingItem}
-              onAddItem={handleAddItem}
-              onDeleteItem={removeItem}
-              onDragStart={handleDragStart}
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-              draggedItemId={draggedItem}
-              dragOverIndex={dragOverIndex}
-              activeSections={activeSections}
-            />
-              </div>
-            </div>
-          </div>
-        )}
-
 
         {/* Fullscreen Preview */}
         {fullScreenPreview && (
@@ -1809,6 +2000,9 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
               itemGridColumns={itemGridColumns}
               hiddenSections={hiddenSections}
               activeSections={activeSections}
+              titleFontFamily={titleFontFamily}
+              subtitleFontFamily={subtitleFontFamily}
+              bodyFontFamily={bodyFontFamily}
               onUpdateRegistry={(updates) => {
                 updateRegistry(updates);
                 if (selectedRegistryId && user) {

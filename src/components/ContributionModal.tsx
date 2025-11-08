@@ -10,15 +10,20 @@ type ContributionModalProps = {
 };
 
 const ContributionModal = ({ item, registry, onClose }: ContributionModalProps) => {
-  const [amount, setAmount] = useState(item.item_type === 'cash' ? '' : (item.price_amount / 100).toString());
+  const allowsCustomAmount = item.item_type === 'cash' || item.item_type === 'partial' || item.item_type === 'charity';
+  const [amount, setAmount] = useState(allowsCustomAmount ? '' : (item.price_amount / 100).toString());
   const [contributorName, setContributorName] = useState('');
   const [contributorEmail, setContributorEmail] = useState('');
   const [message, setMessage] = useState('');
   const [isPublic, setIsPublic] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const suggestedAmounts = item.item_type === 'cash'
-    ? [25, 50, 100, 250]
+  const suggestedAmounts = allowsCustomAmount
+    ? item.item_type === 'cash' || item.item_type === 'charity'
+      ? [25, 50, 100, 250]
+      : item.item_type === 'partial'
+      ? [50, 100, 250, 500]
+      : []
     : [];
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -51,8 +56,18 @@ const ContributionModal = ({ item, registry, onClose }: ContributionModalProps) 
             {item.description && (
               <p className="text-body-sm text-neutral-600 leading-relaxed">{item.description}</p>
             )}
-            {item.item_type !== 'cash' && (
+            {!allowsCustomAmount && (
               <p className="text-body font-semibold text-neutral-900 pt-2">{formatCurrency(item.price_amount)}</p>
+            )}
+            {allowsCustomAmount && item.item_type === 'partial' && (
+              <div className="pt-2 space-y-1">
+                <p className="text-body font-semibold text-neutral-900">
+                  Total: {formatCurrency(item.price_amount)}
+                </p>
+                <p className="text-body-sm text-neutral-600">
+                  Contribute any amount towards this item
+                </p>
+              </div>
             )}
           </div>
 
@@ -60,7 +75,7 @@ const ContributionModal = ({ item, registry, onClose }: ContributionModalProps) 
             <label className="block text-caption font-medium text-neutral-700 uppercase tracking-wide">
               Contribution Amount
             </label>
-            {item.item_type === 'cash' && suggestedAmounts.length > 0 && (
+            {allowsCustomAmount && suggestedAmounts.length > 0 && (
               <div className="grid grid-cols-4 gap-3 mb-4">
                 {suggestedAmounts.map((suggested) => (
                   <button
@@ -89,7 +104,7 @@ const ContributionModal = ({ item, registry, onClose }: ContributionModalProps) 
                 step="0.01"
                 className="input-field pl-8"
                 placeholder="0.00"
-                disabled={item.item_type !== 'cash'}
+                disabled={!allowsCustomAmount}
               />
             </div>
           </div>

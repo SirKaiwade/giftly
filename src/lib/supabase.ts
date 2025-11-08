@@ -54,6 +54,10 @@ export type Registry = {
   description: string;
   guestbook_enabled: boolean;
   is_published: boolean;
+  // Typography settings - only font families
+  title_font_family?: string; // 'sans' | 'serif' | 'mono' | 'display' | 'handwriting'
+  subtitle_font_family?: string; // 'sans' | 'serif' | 'mono' | 'display' | 'handwriting'
+  body_font_family?: string; // 'sans' | 'serif' | 'mono' | 'display' | 'handwriting'
   created_at: string;
   updated_at: string;
 };
@@ -66,7 +70,7 @@ export type RegistryItem = {
   image_url: string;
   image_position?: string; // CSS object-position value (e.g., "center", "50% 30%")
   image_scale?: number; // Scale factor (e.g., 1.5 for 150%)
-  item_type: 'cash' | 'product' | 'service' | 'experience' | 'charity';
+  item_type: 'cash' | 'product' | 'service' | 'experience' | 'charity' | 'partial';
   price_amount: number;
   current_amount: number;
   external_link: string;

@@ -28,6 +28,9 @@ type PublicRegistryProps = {
   itemGridColumns?: number; // 1-4
   hiddenSections?: Set<string>;
   activeSections?: Set<string>; // Sections that should be shown even if empty
+  titleFontFamily?: string; // Font family for titles
+  subtitleFontFamily?: string; // Font family for subtitles
+  bodyFontFamily?: string; // Font family for body text
   onUpdateRegistry?: (updates: Partial<Registry>) => void;
   onEditItem?: (item: RegistryItem) => void;
   onAddItem?: (category: string) => void;
@@ -50,6 +53,9 @@ const PublicRegistry = ({
   itemGridColumns = 3,
   hiddenSections = new Set(),
   activeSections = new Set(),
+  titleFontFamily = 'sans',
+  subtitleFontFamily = 'sans',
+  bodyFontFamily = 'sans',
   onUpdateRegistry,
   onEditItem,
   onAddItem,
@@ -66,6 +72,39 @@ const PublicRegistry = ({
   
   const theme = THEMES.find(t => t.value === registry.theme) || THEMES[0];
   const themeColors = registry.theme === 'custom' && customThemeColors ? customThemeColors : theme.colors;
+  
+  // Typography helper function
+  const getFontFamily = (fontType: 'title' | 'subtitle' | 'body') => {
+    let font: string;
+    if (fontType === 'title') {
+      font = titleFontFamily || 'sans';
+    } else if (fontType === 'subtitle') {
+      font = subtitleFontFamily || 'sans';
+    } else if (fontType === 'body') {
+      font = bodyFontFamily || 'sans';
+    } else {
+      font = 'sans';
+    }
+    
+    
+    switch (font) {
+      case 'serif':
+        return 'ui-serif, Georgia, serif';
+      case 'mono':
+        return 'ui-monospace, "Courier New", monospace';
+      case 'display':
+        return 'ui-sans-serif, system-ui, -apple-system, sans-serif';
+      case 'handwriting':
+        return 'cursive, "Comic Sans MS", "Brush Script MT"';
+      default:
+        return 'ui-sans-serif, system-ui, -apple-system, sans-serif';
+    }
+  };
+
+  // Helper to get font style object
+  const getFontStyle = (fontType: 'title' | 'subtitle' | 'body') => ({
+    fontFamily: getFontFamily(fontType)
+  });
 
   const groupedItems = items.reduce((acc, item) => {
     // Skip hidden sections
@@ -145,7 +184,10 @@ const PublicRegistry = ({
                       }
                     }}
                     className="text-display-2 md:text-display-1 font-light tracking-tight text-center w-full bg-white/90 backdrop-blur-sm px-4 py-2 rounded-lg border-2 border-white/50 focus:outline-none focus:ring-2 focus:ring-white/50"
-                    style={{ color: themeColors.text }}
+                    style={{ 
+                      color: themeColors.text,
+                      ...getFontStyle('title')
+                    }}
                     autoFocus
                   />
                 </div>
@@ -159,7 +201,10 @@ const PublicRegistry = ({
                       }
                     }}
                     className={`text-display-2 md:text-display-1 font-light tracking-tight mb-4 text-balance drop-shadow-lg ${isPreview && onUpdateRegistry ? 'cursor-text' : ''}`}
-                    style={{ color: themeColors.text }}
+                    style={{ 
+                      color: themeColors.text,
+                      ...getFontStyle('title')
+                    }}
                   >
                     {registry.title || 'Your Event Here'}
                   </h1>
@@ -214,7 +259,10 @@ const PublicRegistry = ({
                       }
                     }}
                     className="text-body-lg font-light text-center w-full bg-white/90 backdrop-blur-sm px-4 py-2 rounded-lg border-2 border-white/50 focus:outline-none focus:ring-2 focus:ring-white/50 drop-shadow-md"
-                    style={{ color: themeColors.textLight }}
+                    style={{ 
+                      color: themeColors.textLight,
+                      ...getFontStyle('subtitle')
+                    }}
                     autoFocus
                   />
                 </div>
@@ -229,7 +277,10 @@ const PublicRegistry = ({
                         }
                       }}
                       className={`text-body-lg font-light mb-8 drop-shadow-md ${isPreview && onUpdateRegistry ? 'cursor-text' : ''}`}
-                      style={{ color: themeColors.textLight }}
+                      style={{ 
+                        color: themeColors.textLight,
+                        ...getFontStyle('subtitle')
+                      }}
                     >
                       {registry.subtitle}
                     </p>
@@ -242,7 +293,10 @@ const PublicRegistry = ({
                         }
                       }}
                       className={`text-body-lg font-light mb-8 drop-shadow-md opacity-50 ${isPreview && onUpdateRegistry ? 'cursor-text' : ''}`}
-                      style={{ color: themeColors.textLight }}
+                      style={{ 
+                        color: themeColors.textLight,
+                        ...getFontStyle('subtitle')
+                      }}
                     >
                       Add a subtitle to describe your event
                     </p>
@@ -330,7 +384,10 @@ const PublicRegistry = ({
                     }
                   }}
                   className={`text-display-2 md:text-display-1 font-light tracking-tight mb-4 text-balance ${isPreview && onUpdateRegistry ? 'cursor-text' : ''}`}
-                  style={{ color: themeColors.text }}
+                  style={{ 
+                    color: themeColors.text,
+                    ...getFontStyle('title')
+                  }}
                 >
                   {registry.title || 'Your Event Here'}
                 </h1>
@@ -393,6 +450,7 @@ const PublicRegistry = ({
                     color: themeColors.textLight,
                     borderColor: themeColors.border,
                     backgroundColor: themeColors.surface,
+                    ...getFontStyle('subtitle')
                   }}
                   autoFocus
                 />
@@ -408,7 +466,10 @@ const PublicRegistry = ({
                       }
                     }}
                     className={`text-body-lg font-light mb-8 ${isPreview && onUpdateRegistry ? 'cursor-text' : ''}`}
-                    style={{ color: themeColors.textLight }}
+                    style={{ 
+                      color: themeColors.textLight,
+                      fontFamily: getFontFamily('subtitle')
+                    }}
                   >
                     {registry.subtitle}
                   </p>
@@ -421,7 +482,10 @@ const PublicRegistry = ({
                       }
                     }}
                     className={`text-body-lg font-light mb-8 opacity-50 ${isPreview && onUpdateRegistry ? 'cursor-text' : ''}`}
-                    style={{ color: themeColors.textLight }}
+                    style={{ 
+                      color: themeColors.textLight,
+                      fontFamily: getFontFamily('subtitle')
+                    }}
                   >
                     Add a subtitle to describe your event
                   </p>
@@ -494,7 +558,10 @@ const PublicRegistry = ({
                       }
                     }}
                     className={`text-body max-w-2xl mx-auto leading-relaxed ${isPreview && onUpdateRegistry ? 'cursor-text' : ''}`}
-                    style={{ color: themeColors.textMuted }}
+                    style={{ 
+                      color: themeColors.textMuted,
+                      ...getFontStyle('subtitle')
+                    }}
                   >
                     {registry.description}
                   </p>
@@ -507,7 +574,10 @@ const PublicRegistry = ({
                       }
                     }}
                     className={`text-body max-w-2xl mx-auto leading-relaxed opacity-50 ${isPreview && onUpdateRegistry ? 'cursor-text' : ''}`}
-                    style={{ color: themeColors.textMuted }}
+                    style={{ 
+                      color: themeColors.textMuted,
+                      ...getFontStyle('subtitle')
+                    }}
                   >
                     Tell your guests about your event and what makes it special...
                   </p>
@@ -570,7 +640,8 @@ const PublicRegistry = ({
                 style={{ 
                   color: themeColors.textMuted,
                   borderColor: themeColors.border,
-                  backgroundColor: themeColors.surface
+                  backgroundColor: themeColors.surface,
+                  ...getFontStyle('subtitle')
                 }}
                 rows={3}
                 autoFocus
@@ -587,7 +658,10 @@ const PublicRegistry = ({
                     }
                   }}
                   className={`text-body-lg max-w-2xl mx-auto leading-relaxed ${isPreview && onUpdateRegistry ? 'cursor-text' : ''}`}
-                  style={{ color: themeColors.textMuted }}
+                  style={{ 
+                    color: themeColors.textMuted,
+                    fontFamily: getFontFamily('body')
+                  }}
                 >
                   {registry.description}
                 </p>
@@ -600,7 +674,10 @@ const PublicRegistry = ({
                     }
                   }}
                   className={`text-body-lg max-w-2xl mx-auto leading-relaxed opacity-50 ${isPreview && onUpdateRegistry ? 'cursor-text' : ''}`}
-                  style={{ color: themeColors.textMuted }}
+                  style={{ 
+                    color: themeColors.textMuted,
+                    fontFamily: getFontFamily('body')
+                  }}
                 >
                   Tell your guests about your event and what makes it special...
                 </p>
@@ -650,7 +727,10 @@ const PublicRegistry = ({
             <div className="mb-10">
               <h2 
                 className="text-caption tracking-widest uppercase mb-3"
-                style={{ color: themeColors.textMuted }}
+                style={{ 
+                  color: themeColors.textMuted,
+                  ...getFontStyle('subtitle')
+                }}
               >
                 {categoryLabels[category] || category}
               </h2>
@@ -786,7 +866,10 @@ const PublicRegistry = ({
                     <div className="flex items-start justify-between">
                       <h3 
                         className="text-body font-medium leading-snug pr-2"
-                        style={{ color: themeColors.text }}
+                        style={{ 
+                          color: themeColors.text,
+                          ...getFontStyle('body')
+                        }}
                       >
                         {item.title}
                       </h3>
@@ -802,13 +885,16 @@ const PublicRegistry = ({
                     {item.description && (
                       <p 
                         className="text-body-sm leading-relaxed line-clamp-2"
-                        style={{ color: themeColors.textMuted }}
+                        style={{ 
+                          color: themeColors.textMuted,
+                          ...getFontStyle('body')
+                        }}
                       >
                         {item.description}
                       </p>
                     )}
 
-                    {item.item_type === 'cash' ? (
+                    {(item.item_type === 'cash' || item.item_type === 'partial' || item.item_type === 'charity') ? (
                       <div className="pt-3">
                         <div className="flex items-baseline justify-between mb-2">
                           <span 

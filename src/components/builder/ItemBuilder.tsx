@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useRegistry } from '../../contexts/RegistryContext';
-import { Plus, Edit2, Trash2, ExternalLink, DollarSign } from 'lucide-react';
+import { Plus, Edit2, Trash2, ExternalLink, DollarSign, Package, Gift, Sparkles, Clock, Heart } from 'lucide-react';
 import { ITEM_TYPES, CATEGORIES } from '../../types';
 import { RegistryItem } from '../../lib/supabase';
 import { formatCurrency, calculateProgress } from '../../utils/helpers';
@@ -140,7 +140,7 @@ const ItemBuilder = () => {
                     {formatCurrency(item.price_amount)}
                   </span>
                 </div>
-                {item.item_type === 'cash' && (
+                {(item.item_type === 'cash' || item.item_type === 'partial' || item.item_type === 'charity') && (
                   <div className="mt-3">
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div
@@ -201,52 +201,100 @@ const ItemBuilder = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Item Type</label>
-                  <select
-                    value={formData.item_type}
-                    onChange={(e) => setFormData({ ...formData, item_type: e.target.value as any })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    {ITEM_TYPES.map((type) => (
-                      <option key={type.value} value={type.value}>
-                        {type.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
-                  <select
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    {CATEGORIES.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat.charAt(0).toUpperCase() + cat.slice(1)}
-                      </option>
-                    ))}
-                  </select>
+              {/* Item Type Selector */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">Item Type *</label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {ITEM_TYPES.map((type) => {
+                    const isSelected = formData.item_type === type.value;
+                    const IconComponent = 
+                      type.icon === 'DollarSign' ? DollarSign :
+                      type.icon === 'Package' ? Package :
+                      type.icon === 'Gift' ? Gift :
+                      type.icon === 'Sparkles' ? Sparkles :
+                      type.icon === 'Clock' ? Clock :
+                      Heart;
+                    
+                    return (
+                      <button
+                        key={type.value}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, item_type: type.value as any })}
+                        className={`p-4 rounded-xl border-2 transition-all duration-200 text-left hover:shadow-md flex flex-col h-full min-h-[100px] ${
+                          isSelected
+                            ? 'border-blue-600 bg-blue-600 text-white shadow-lg'
+                            : 'border-gray-200 bg-white hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-start space-x-3">
+                          <div className={`p-2 rounded-lg flex-shrink-0 ${isSelected ? 'bg-white/20' : 'bg-gray-100'}`}>
+                            <IconComponent className={`w-5 h-5 ${isSelected ? 'text-white' : 'text-gray-700'}`} strokeWidth={1.5} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className={`font-semibold text-sm mb-0.5 ${isSelected ? 'text-white' : 'text-gray-900'}`}>
+                              {type.label}
+                            </div>
+                            <div className={`text-xs leading-snug ${isSelected ? 'text-white/80' : 'text-gray-600'}`}>
+                              {type.description}
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Price / Goal Amount ($)
-                </label>
-                <input
-                  type="number"
-                  value={formData.price_amount}
-                  onChange={(e) => setFormData({ ...formData, price_amount: parseFloat(e.target.value) || 0 })}
+                <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                <select
+                  value={formData.category}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="0.00"
-                  step="0.01"
-                  min="0"
-                />
+                >
+                  {CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                    </option>
+                  ))}
+                </select>
               </div>
+
+              {/* Conditional Price/Goal Fields */}
+              {(formData.item_type === 'cash' || formData.item_type === 'partial' || formData.item_type === 'charity') ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    {formData.item_type === 'cash' ? 'Goal Amount' : formData.item_type === 'partial' ? 'Total Cost' : 'Target Amount'} ($)
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.price_amount}
+                    onChange={(e) => setFormData({ ...formData, price_amount: parseFloat(e.target.value) || 0 })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="0.00"
+                    step="0.01"
+                    min="0"
+                  />
+                  {formData.item_type === 'partial' && (
+                    <p className="mt-2 text-xs text-gray-500">
+                      💡 Perfect for big items like furniture, appliances, or vehicles where multiple people can pitch in
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Price ($)</label>
+                  <input
+                    type="number"
+                    value={formData.price_amount}
+                    onChange={(e) => setFormData({ ...formData, price_amount: parseFloat(e.target.value) || 0 })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="0.00"
+                    step="0.01"
+                    min="0"
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
