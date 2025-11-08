@@ -45,6 +45,11 @@ const PublicRegistryRoute = () => {
         }
 
         setRegistry(registryData);
+        
+        // Update document title
+        document.title = registryData.title 
+          ? `${registryData.title} - Giftly`
+          : 'Giftly - Universal Gift Registry';
 
         // Fetch registry items
         const { data: itemsData, error: itemsError } = await supabase
@@ -68,6 +73,11 @@ const PublicRegistryRoute = () => {
     };
 
     fetchRegistry();
+    
+    // Reset title on unmount
+    return () => {
+      document.title = 'Giftly - Universal Gift Registry';
+    };
   }, [slug]);
 
   if (loading) {

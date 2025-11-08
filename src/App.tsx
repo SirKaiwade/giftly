@@ -56,6 +56,17 @@ function AppContent() {
   const [showProfileSetup, setShowProfileSetup] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  
+  // Update document title based on route
+  useEffect(() => {
+    if (location.pathname === '/') {
+      document.title = 'Giftly - Universal Gift Registry';
+    } else if (location.pathname === '/builder') {
+      document.title = 'Create Registry - Giftly';
+    } else if (location.pathname === '/canvas') {
+      document.title = 'Edit Registry - Giftly';
+    }
+  }, [location.pathname]);
 
   // Handle auth callback from email confirmation
   useEffect(() => {

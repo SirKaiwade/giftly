@@ -12,7 +12,7 @@ const ShareModal = ({ registryUrl, registryTitle, onClose }: ShareModalProps) =>
   const [copied, setCopied] = useState(false);
   const [copyAnimating, setCopyAnimating] = useState(false);
 
-  const fullUrl = `https://giftendo.com/${registryUrl}`;
+  const fullUrl = `${window.location.origin}/${registryUrl}`;
   const qrCodeUrl = generateQRCodeURL(fullUrl);
 
   const handleCopyLink = async () => {

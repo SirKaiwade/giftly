@@ -109,14 +109,18 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
       let slug = baseSlug;
       let slugCounter = 1;
       
-      // Check if slug exists and make it unique
-      const { data: existing } = await supabase
-        .from('registries')
-        .select('slug')
-        .eq('slug', slug)
-        .single();
-      
-      if (existing) {
+      // Check if slug exists and make it unique - loop until we find a unique one
+      while (true) {
+        const { data: existing } = await supabase
+          .from('registries')
+          .select('slug')
+          .eq('slug', slug)
+          .maybeSingle();
+        
+        if (!existing) {
+          break; // Slug is unique, exit loop
+        }
+        
         slug = `${baseSlug}-${slugCounter}`;
         slugCounter++;
       }
@@ -136,12 +140,12 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
           hero_image_position: currentRegistry.hero_image_position || 'center',
           description: currentRegistry.description || '',
           guestbook_enabled: currentRegistry.guestbook_enabled ?? true,
-          is_published: currentRegistry.is_published ?? false,
+          is_published: currentRegistry.is_published ?? true,
           title_font_family: titleFontFamily,
           subtitle_font_family: subtitleFontFamily,
           body_font_family: bodyFontFamily,
         })
-        .select('id, title, event_type')
+        .select('id, title, event_type, slug')
         .single();
 
       if (error) {
@@ -152,8 +156,12 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
       }
 
       if (newRegistry) {
-        // Update context with the new ID
-        updateRegistry({ id: newRegistry.id, title: registryTitle });
+        // Update context with the new ID and slug
+        updateRegistry({ 
+          id: newRegistry.id, 
+          title: registryTitle,
+          slug: slug 
+        });
         setSelectedRegistryId(newRegistry.id);
         setRegistries(prev => [newRegistry, ...prev]);
         
