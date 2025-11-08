@@ -502,24 +502,44 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
       console.log('[CanvasEditor] Auto-saving registry changes...');
       
       try {
+        // Prepare update object
+        const updateData: any = {
+          title: currentRegistry.title || '',
+          subtitle: currentRegistry.subtitle || '',
+          event_date: currentRegistry.event_date || null,
+          hero_image_url: currentRegistry.hero_image_url || '',
+          hero_image_position: currentRegistry.hero_image_position || 'center',
+          description: currentRegistry.description || '',
+          guestbook_enabled: currentRegistry.guestbook_enabled ?? true,
+          title_font_family: titleFontFamily,
+          subtitle_font_family: subtitleFontFamily,
+          body_font_family: bodyFontFamily,
+          title_font_weight: titleFontWeight,
+          title_font_style: titleFontStyle,
+          title_text_decoration: titleTextDecoration,
+          subtitle_font_weight: subtitleFontWeight,
+          subtitle_font_style: subtitleFontStyle,
+          subtitle_text_decoration: subtitleTextDecoration,
+          body_font_weight: bodyFontWeight,
+          body_font_style: bodyFontStyle,
+          body_text_decoration: bodyTextDecoration,
+          event_type: currentRegistry.event_type || 'wedding',
+          theme: currentRegistry.theme || 'minimal',
+          updated_at: new Date().toISOString(),
+        };
+
+        // Include custom theme colors if theme is custom
+        if (currentRegistry.theme === 'custom' && customThemeColors) {
+          updateData.custom_theme_colors = JSON.stringify(customThemeColors);
+        } else if (currentRegistry.theme !== 'custom') {
+          // Clear custom theme colors if switching away from custom theme
+          updateData.custom_theme_colors = null;
+        }
+
         // Save registry data
         const { error: registryError } = await supabase
           .from('registries')
-          .update({
-            title: currentRegistry.title || '',
-            subtitle: currentRegistry.subtitle || '',
-            event_date: currentRegistry.event_date || null,
-            hero_image_url: currentRegistry.hero_image_url || '',
-            hero_image_position: currentRegistry.hero_image_position || 'center',
-            description: currentRegistry.description || '',
-            guestbook_enabled: currentRegistry.guestbook_enabled ?? true,
-            title_font_family: titleFontFamily,
-            subtitle_font_family: subtitleFontFamily,
-            body_font_family: bodyFontFamily,
-            event_type: currentRegistry.event_type || 'wedding',
-            theme: currentRegistry.theme || 'minimal',
-            updated_at: new Date().toISOString(),
-          })
+          .update(updateData)
           .eq('id', selectedRegistryId);
 
         if (registryError) {
@@ -559,7 +579,26 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
     }, 1500); // 1.5 second debounce
 
     return () => clearTimeout(timeoutId);
-  }, [currentRegistry, currentItems, selectedRegistryId, user, isLoadingRegistry]);
+  }, [
+    currentRegistry, 
+    currentItems, 
+    selectedRegistryId, 
+    user, 
+    isLoadingRegistry,
+    titleFontFamily,
+    subtitleFontFamily,
+    bodyFontFamily,
+    titleFontWeight,
+    titleFontStyle,
+    titleTextDecoration,
+    subtitleFontWeight,
+    subtitleFontStyle,
+    subtitleTextDecoration,
+    bodyFontWeight,
+    bodyFontStyle,
+    bodyTextDecoration,
+    customThemeColors,
+  ]);
 
   // Get initials from name or email
   const getInitials = (email: string | undefined, fullName?: string | null) => {

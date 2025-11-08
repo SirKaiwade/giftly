@@ -67,6 +67,7 @@ export type Registry = {
   body_font_weight?: 'normal' | 'bold';
   body_font_style?: 'normal' | 'italic';
   body_text_decoration?: 'none' | 'underline';
+  custom_theme_colors?: string; // JSON stringified custom theme colors
   created_at: string;
   updated_at: string;
 };
