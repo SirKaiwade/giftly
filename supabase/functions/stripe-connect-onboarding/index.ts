@@ -47,6 +47,27 @@ serve(async (req) => {
       throw new Error('Invalid authentication');
     }
 
+    // Helper function to ensure HTTPS URLs for live mode
+    const getRedirectUrl = (path: string): string => {
+      const isLiveMode = stripeSecretKey.startsWith('sk_live_');
+      const origin = req.headers.get('origin') || '';
+      const frontendUrl = Deno.env.get('FRONTEND_URL');
+      
+      // Use FRONTEND_URL if set (for production)
+      if (frontendUrl) {
+        return `${frontendUrl}${path}`;
+      }
+      
+      // If live mode and origin is HTTP, convert to HTTPS (for localhost, use ngrok or similar)
+      if (isLiveMode && origin.startsWith('http://')) {
+        // For localhost in live mode, you need HTTPS - use ngrok or production URL
+        // For now, throw an error to guide the user
+        throw new Error('Live mode requires HTTPS. Please set FRONTEND_URL environment variable to your production HTTPS URL, or use test mode keys (sk_test_) for local development.');
+      }
+      
+      return `${origin}${path}`;
+    };
+
     // Get user profile to check if they already have a Stripe account
     const { data: profile, error: profileError } = await supabaseClient
       .from('user_profiles')
@@ -67,8 +88,8 @@ serve(async (req) => {
         // Account is fully onboarded, return account link for dashboard
         const accountLink = await stripeClient.accountLinks.create({
           account: profile.stripe_account_id,
-          refresh_url: `${req.headers.get('origin') || ''}/profile?stripe_refresh=true`,
-          return_url: `${req.headers.get('origin') || ''}/profile?stripe_return=true`,
+          refresh_url: getRedirectUrl('/profile?stripe_refresh=true'),
+          return_url: getRedirectUrl('/profile?stripe_return=true'),
           type: 'account_onboarding',
         });
 
@@ -88,8 +109,8 @@ serve(async (req) => {
       // Create onboarding link for existing account
       const accountLink = await stripeClient.accountLinks.create({
         account: profile.stripe_account_id,
-        refresh_url: `${req.headers.get('origin') || ''}/profile?stripe_refresh=true`,
-        return_url: `${req.headers.get('origin') || ''}/profile?stripe_return=true`,
+        refresh_url: getRedirectUrl('/profile?stripe_refresh=true'),
+        return_url: getRedirectUrl('/profile?stripe_return=true'),
         type: 'account_onboarding',
       });
 
@@ -127,8 +148,8 @@ serve(async (req) => {
     // Create onboarding link
     const accountLink = await stripeClient.accountLinks.create({
       account: account.id,
-      refresh_url: `${req.headers.get('origin') || ''}/profile?stripe_refresh=true`,
-      return_url: `${req.headers.get('origin') || ''}/profile?stripe_return=true`,
+      refresh_url: getRedirectUrl('/profile?stripe_refresh=true'),
+      return_url: getRedirectUrl('/profile?stripe_return=true'),
       type: 'account_onboarding',
     });
 
