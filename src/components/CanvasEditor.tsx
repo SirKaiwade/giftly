@@ -1227,7 +1227,22 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
               </button>
               {currentRegistry?.slug && (
                 <button
-                  onClick={() => setShowShareModal(true)}
+                  onClick={async () => {
+                    // Ensure registry is published before sharing
+                    if (!currentRegistry.is_published && selectedRegistryId && user) {
+                      try {
+                        await supabase
+                          .from('registries')
+                          .update({ is_published: true, updated_at: new Date().toISOString() })
+                          .eq('id', selectedRegistryId);
+                        updateRegistry({ is_published: true });
+                        console.log('[CanvasEditor] Registry published for sharing');
+                      } catch (error) {
+                        console.error('[CanvasEditor] Error publishing registry:', error);
+                      }
+                    }
+                    setShowShareModal(true);
+                  }}
                   className="px-4 py-2 text-sm bg-neutral-900 hover:bg-neutral-800 text-white rounded-lg transition-all duration-200 flex items-center space-x-2 hover:scale-105 hover:shadow-lg"
                   title="Share Registry"
                 >

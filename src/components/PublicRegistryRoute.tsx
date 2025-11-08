@@ -21,25 +21,45 @@ const PublicRegistryRoute = () => {
 
       try {
         // Fetch registry by slug
-        // Allow access if published OR if user owns it (for preview)
-        const { data: registryData, error: registryError } = await supabase
+        // First try to fetch as published (for public access)
+        let registryData: Registry | null = null;
+        
+        const { data: publishedData, error: publishedError } = await supabase
           .from('registries')
           .select('*')
           .eq('slug', slug)
+          .eq('is_published', true)
           .single();
 
-        if (registryError || !registryData) {
-          setError('Registry not found');
-          setLoading(false);
-          return;
+        if (!publishedError && publishedData) {
+          // Successfully fetched published registry
+          registryData = publishedData;
+        } else {
+          // Not found as published, check if user is owner (for preview)
+          console.log('[PublicRegistryRoute] Published registry not found, checking if user is owner...');
+          const { data: { user } } = await supabase.auth.getUser();
+          
+          if (user) {
+            const { data: ownerData, error: ownerError } = await supabase
+              .from('registries')
+              .select('*')
+              .eq('slug', slug)
+              .eq('user_id', user.id)
+              .single();
+            
+            if (!ownerError && ownerData) {
+              // User owns it, allow access even if unpublished
+              registryData = ownerData;
+              console.log('[PublicRegistryRoute] Found registry as owner');
+            } else {
+              console.error('[PublicRegistryRoute] Registry not found for owner:', ownerError);
+            }
+          }
         }
 
-        // Check if registry is published or if user owns it
-        const { data: { user } } = await supabase.auth.getUser();
-        const isOwner = user?.id === registryData.user_id;
-
-        if (!registryData.is_published && !isOwner) {
-          setError('This registry is not publicly available');
+        if (!registryData) {
+          console.error('[PublicRegistryRoute] Registry not found. Published error:', publishedError);
+          setError('Registry not found');
           setLoading(false);
           return;
         }
