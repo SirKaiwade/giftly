@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useRegistry } from '../contexts/RegistryContext';
-import { GripVertical, Plus, Edit2, Trash2, Layout, Grid, Columns, Layers, ChevronDown, ChevronUp, X, FolderPlus, Settings, Calendar, Type, Image as ImageIcon, AlignLeft, BarChart3, Palette, Pencil, Share2 } from 'lucide-react';
+import { GripVertical, Plus, Edit2, Trash2, Layout, Grid, Columns, Layers, ChevronDown, ChevronUp, X, FolderPlus, Settings, Calendar, Type, Image as ImageIcon, AlignLeft, BarChart3, Palette, Pencil, Share2, Sliders, Eye, EyeOff } from 'lucide-react';
 import { RegistryItem, Contribution, supabase } from '../lib/supabase';
 import PublicRegistry from './PublicRegistry';
 import ItemEditModal from './ItemEditModal';
@@ -53,7 +53,7 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showNameRegistryModal, setShowNameRegistryModal] = useState(false);
   const [pendingRegistryAction, setPendingRegistryAction] = useState<((name: string) => Promise<void>) | null>(null);
-  const [userProfile, setUserProfile] = useState<{ full_name: string | null } | null>(null);
+  const [userProfile, setUserProfile] = useState<{ full_name: string | null; profile_picture_url: string | null } | null>(null);
   const [showRegistryDropdown, setShowRegistryDropdown] = useState(false);
   const [deletingRegistryId, setDeletingRegistryId] = useState<string | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -71,6 +71,13 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
     surfaceElevated: string;
   } | null>(null);
   const [isLoadingRegistry, setIsLoadingRegistry] = useState(false);
+  const [showCustomizationPanel, setShowCustomizationPanel] = useState(false);
+  const [customizationTab, setCustomizationTab] = useState<'hero' | 'typography' | 'colors' | 'layout' | 'sections'>('hero');
+  const [heroImageHeight, setHeroImageHeight] = useState(60); // Viewport height percentage
+  const [heroOverlayOpacity, setHeroOverlayOpacity] = useState(0.2);
+  const [sectionSpacing, setSectionSpacing] = useState(6); // Tailwind spacing units
+  const [itemGridColumns, setItemGridColumns] = useState(3);
+  const [hiddenSections, setHiddenSections] = useState<Set<string>>(new Set());
 
   // Function to save registry with a given name
   const saveRegistryWithName = async (registryTitle: string) => {
@@ -110,6 +117,7 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
           subtitle: currentRegistry.subtitle || '',
           event_date: currentRegistry.event_date || null,
           hero_image_url: currentRegistry.hero_image_url || '',
+          hero_image_position: currentRegistry.hero_image_position || 'center',
           description: currentRegistry.description || '',
           guestbook_enabled: currentRegistry.guestbook_enabled ?? true,
           is_published: currentRegistry.is_published ?? false,
@@ -331,6 +339,7 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
               subtitle: data.subtitle || '',
               event_date: data.event_date || '',
               hero_image_url: data.hero_image_url || '',
+              hero_image_position: (data as any).hero_image_position || 'center',
               description: data.description || '',
               guestbook_enabled: data.guestbook_enabled ?? true,
               is_published: data.is_published ?? false,
@@ -398,14 +407,14 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
 
       const { data, error } = await supabase
         .from('user_profiles')
-        .select('full_name')
+        .select('full_name, profile_picture_url')
         .eq('user_id', user.id)
         .single();
 
       if (!error && data) {
         setUserProfile(data);
       } else {
-        setUserProfile({ full_name: null });
+        setUserProfile({ full_name: null, profile_picture_url: null });
       }
     };
 
@@ -433,6 +442,7 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
             subtitle: currentRegistry.subtitle || '',
             event_date: currentRegistry.event_date || null,
             hero_image_url: currentRegistry.hero_image_url || '',
+            hero_image_position: currentRegistry.hero_image_position || 'center',
             description: currentRegistry.description || '',
             guestbook_enabled: currentRegistry.guestbook_enabled ?? true,
             event_type: currentRegistry.event_type || 'wedding',
@@ -1006,6 +1016,18 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
                 <Settings className="w-4 h-4" strokeWidth={1.5} />
                 <span className="hidden sm:inline">Event Info</span>
               </button>
+              <button
+                onClick={() => setShowCustomizationPanel(!showCustomizationPanel)}
+                className={`px-4 py-2 text-sm transition-colors flex items-center space-x-2 ${
+                  showCustomizationPanel 
+                    ? 'bg-neutral-900 text-white hover:bg-neutral-800' 
+                    : 'text-neutral-600 hover:text-neutral-900'
+                }`}
+                title="Customize Design"
+              >
+                <Sliders className="w-4 h-4" strokeWidth={1.5} />
+                <span className="hidden sm:inline">Customize</span>
+              </button>
               {currentRegistry?.slug && (
                 <button
                   onClick={() => setShowShareModal(true)}
@@ -1026,7 +1048,7 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
                   // Refresh profile when opening modal
                   supabase
                     .from('user_profiles')
-                    .select('full_name')
+                    .select('full_name, profile_picture_url')
                     .eq('user_id', user.id)
                     .single()
                     .then(({ data }) => {
@@ -1038,8 +1060,25 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
                 className="flex items-center space-x-3 pl-4 border-l border-neutral-200 hover:bg-neutral-50 rounded-lg px-2 py-1 transition-colors group"
                 title="Edit Profile"
               >
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-neutral-900 to-neutral-700 flex items-center justify-center text-white font-semibold text-sm shadow-sm group-hover:shadow-md transition-shadow">
-                  {getInitials(user.email, userProfile?.full_name)}
+                <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-neutral-900 to-neutral-700 flex items-center justify-center text-white font-semibold text-sm shadow-sm group-hover:shadow-md transition-shadow flex-shrink-0">
+                  {userProfile?.profile_picture_url ? (
+                    <img
+                      src={userProfile.profile_picture_url}
+                      alt={userProfile.full_name || 'Profile'}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        // Fallback to initials if image fails to load
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        const parent = target.parentElement;
+                        if (parent) {
+                          parent.innerHTML = getInitials(user.email, userProfile?.full_name);
+                        }
+                      }}
+                    />
+                  ) : (
+                    <span>{getInitials(user.email, userProfile?.full_name)}</span>
+                  )}
                 </div>
                 <div className="hidden sm:block text-left">
                   <div className="text-sm font-medium text-neutral-900 group-hover:text-neutral-700">
@@ -1333,10 +1372,369 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
           </div>
         )}
 
+        {/* Customization Panel */}
+        {showCustomizationPanel && !fullScreenPreview && (
+          <div className="w-80 border-r border-neutral-200 bg-gradient-to-b from-neutral-50 to-white overflow-y-auto">
+            <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-neutral-200 px-4 py-3 z-10 flex items-center justify-between shadow-sm">
+              <div className="flex items-center space-x-2">
+                <Sliders className="w-4 h-4 text-neutral-600" strokeWidth={1.5} />
+                <h2 className="text-sm font-semibold text-neutral-900">Customize</h2>
+              </div>
+              <button
+                onClick={() => setShowCustomizationPanel(false)}
+                className="p-1.5 hover:bg-neutral-100 rounded-lg transition-colors"
+              >
+                <X className="w-4 h-4" strokeWidth={1.5} />
+              </button>
+            </div>
+
+            <div className="p-4">
+              {/* Tabs - More compact and intuitive */}
+              <div className="flex flex-wrap gap-1 mb-4">
+                {[
+                  { id: 'hero', label: 'Hero', icon: ImageIcon, short: 'H' },
+                  { id: 'typography', label: 'Typography', icon: Type, short: 'T' },
+                  { id: 'colors', label: 'Colors', icon: Palette, short: 'C' },
+                  { id: 'layout', label: 'Layout', icon: Layout, short: 'L' },
+                  { id: 'sections', label: 'Sections', icon: Layers, short: 'S' },
+                ].map((tab) => {
+                  const Icon = tab.icon;
+                  const isActive = customizationTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setCustomizationTab(tab.id as any)}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                        isActive
+                          ? 'bg-neutral-900 text-white shadow-sm'
+                          : 'bg-white text-neutral-600 hover:bg-neutral-100 border border-neutral-200'
+                      }`}
+                      title={tab.label}
+                    >
+                      <div className="flex items-center space-x-1.5">
+                        <Icon className="w-3.5 h-3.5" strokeWidth={1.5} />
+                        <span className="hidden sm:inline">{tab.label}</span>
+                        <span className="sm:hidden">{tab.short}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Hero Image Customization */}
+              {customizationTab === 'hero' && (
+                <div className="space-y-5">
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-700 mb-2.5 uppercase tracking-wide">
+                      Image Position
+                    </label>
+                    <div className="grid grid-cols-3 gap-1.5 mb-2.5">
+                      {[
+                        { label: 'Top', value: 'top' },
+                        { label: 'Center', value: 'center' },
+                        { label: 'Bottom', value: 'bottom' },
+                        { label: 'Left', value: 'left' },
+                        { label: 'Right', value: 'right' },
+                        { label: 'Top Left', value: 'top left' },
+                        { label: 'Top Right', value: 'top right' },
+                        { label: 'Bottom Left', value: 'bottom left' },
+                        { label: 'Bottom Right', value: 'bottom right' },
+                      ].map((preset) => (
+                        <button
+                          key={preset.value}
+                          type="button"
+                          onClick={() => updateRegistry({ hero_image_position: preset.value })}
+                          className={`px-2 py-1.5 text-[10px] rounded-md border transition-all ${
+                            (currentRegistry?.hero_image_position || 'center') === preset.value
+                              ? 'border-neutral-900 bg-neutral-900 text-white shadow-sm'
+                              : 'border-neutral-200 hover:border-neutral-400 text-neutral-700 bg-white'
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      type="text"
+                      value={currentRegistry?.hero_image_position || 'center'}
+                      onChange={(e) => updateRegistry({ hero_image_position: e.target.value })}
+                      placeholder="center"
+                      className="w-full px-2.5 py-1.5 text-xs border border-neutral-300 rounded-md focus:ring-1 focus:ring-neutral-900 focus:border-neutral-900 bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-xs font-semibold text-neutral-700 uppercase tracking-wide">
+                        Image Height
+                      </label>
+                      <span className="text-xs font-medium text-neutral-600">{heroImageHeight}vh</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="30"
+                      max="80"
+                      value={heroImageHeight}
+                      onChange={(e) => setHeroImageHeight(Number(e.target.value))}
+                      className="w-full h-1.5 bg-neutral-200 rounded-lg appearance-none cursor-pointer accent-neutral-900"
+                    />
+                    <div className="flex justify-between text-[10px] text-neutral-400 mt-1">
+                      <span>30vh</span>
+                      <span>80vh</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-xs font-semibold text-neutral-700 uppercase tracking-wide">
+                        Overlay Opacity
+                      </label>
+                      <span className="text-xs font-medium text-neutral-600">{Math.round(heroOverlayOpacity * 100)}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={heroOverlayOpacity * 100}
+                      onChange={(e) => setHeroOverlayOpacity(Number(e.target.value) / 100)}
+                      className="w-full h-1.5 bg-neutral-200 rounded-lg appearance-none cursor-pointer accent-neutral-900"
+                    />
+                    <div className="flex justify-between text-[10px] text-neutral-400 mt-1">
+                      <span>0%</span>
+                      <span>100%</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Typography Customization */}
+              {customizationTab === 'typography' && (
+                <div className="space-y-5">
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
+                      Title Size
+                    </label>
+                    <select
+                      className="w-full px-2.5 py-1.5 text-xs border border-neutral-300 rounded-md focus:ring-1 focus:ring-neutral-900 focus:border-neutral-900 bg-white"
+                      defaultValue="display-1"
+                    >
+                      <option value="display-1">Display 1 (Largest)</option>
+                      <option value="display-2">Display 2</option>
+                      <option value="display-3">Display 3</option>
+                      <option value="text-4xl">4xl</option>
+                      <option value="text-3xl">3xl</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
+                      Body Font Size
+                    </label>
+                    <select
+                      className="w-full px-2.5 py-1.5 text-xs border border-neutral-300 rounded-md focus:ring-1 focus:ring-neutral-900 focus:border-neutral-900 bg-white"
+                      defaultValue="base"
+                    >
+                      <option value="sm">Small</option>
+                      <option value="base">Base</option>
+                      <option value="lg">Large</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-700 mb-2 uppercase tracking-wide">
+                      Font Weight
+                    </label>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {['Light', 'Normal', 'Medium', 'Semibold', 'Bold'].map((weight) => (
+                        <button
+                          key={weight}
+                          className="px-2 py-1.5 text-[10px] border border-neutral-200 rounded-md hover:border-neutral-900 transition-colors bg-white"
+                        >
+                          {weight}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Colors Customization */}
+              {customizationTab === 'colors' && (
+                <div className="space-y-5">
+                  {currentRegistry?.theme === 'custom' ? (
+                    <div>
+                      <p className="text-xs text-neutral-500 mb-4 leading-relaxed">
+                        Customize your theme colors. Changes apply instantly.
+                      </p>
+                      {customThemeColors && (
+                        <div className="space-y-3">
+                          {Object.entries(customThemeColors).map(([key, value]) => (
+                            <div key={key}>
+                              <label className="block text-[10px] font-semibold text-neutral-600 mb-1.5 uppercase tracking-wide">
+                                {key.replace(/([A-Z])/g, ' $1').trim()}
+                              </label>
+                              <div className="flex items-center space-x-2">
+                                <input
+                                  type="color"
+                                  value={value}
+                                  onChange={(e) => {
+                                    const newColors = { ...customThemeColors, [key]: e.target.value };
+                                    setCustomThemeColors(newColors);
+                                    // Save to database
+                                    if (selectedRegistryId && user) {
+                                      supabase
+                                        .from('registries')
+                                        .update({
+                                          custom_theme_colors: JSON.stringify(newColors),
+                                          updated_at: new Date().toISOString(),
+                                        })
+                                        .eq('id', selectedRegistryId);
+                                    }
+                                  }}
+                                  className="w-10 h-8 rounded border border-neutral-300 cursor-pointer"
+                                />
+                                <input
+                                  type="text"
+                                  value={value}
+                                  onChange={(e) => {
+                                    const newColors = { ...customThemeColors, [key]: e.target.value };
+                                    setCustomThemeColors(newColors);
+                                  }}
+                                  className="flex-1 px-2 py-1 text-xs border border-neutral-300 rounded-md bg-white"
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-xs text-neutral-500 mb-4 leading-relaxed">
+                        Switch to "Custom" theme to customize individual colors.
+                      </p>
+                      <button
+                        onClick={() => {
+                          updateRegistry({ theme: 'custom' });
+                          const defaultCustom = THEMES.find(t => t.value === 'custom');
+                          setCustomThemeColors(defaultCustom?.colors || null);
+                        }}
+                        className="w-full px-3 py-2 text-xs bg-neutral-900 text-white rounded-md hover:bg-neutral-800 transition-colors font-medium"
+                      >
+                        Switch to Custom Theme
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Layout Customization */}
+              {customizationTab === 'layout' && (
+                <div className="space-y-5">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-xs font-semibold text-neutral-700 uppercase tracking-wide">
+                        Section Spacing
+                      </label>
+                      <span className="text-xs font-medium text-neutral-600">{sectionSpacing * 4}px</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="2"
+                      max="12"
+                      value={sectionSpacing}
+                      onChange={(e) => setSectionSpacing(Number(e.target.value))}
+                      className="w-full h-1.5 bg-neutral-200 rounded-lg appearance-none cursor-pointer accent-neutral-900"
+                    />
+                    <div className="flex justify-between text-[10px] text-neutral-400 mt-1">
+                      <span>8px</span>
+                      <span>48px</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-700 mb-2.5 uppercase tracking-wide">
+                      Item Grid Columns
+                    </label>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {[1, 2, 3, 4].map((cols) => (
+                        <button
+                          key={cols}
+                          onClick={() => setItemGridColumns(cols)}
+                          className={`px-2 py-1.5 text-[10px] border rounded-md transition-all ${
+                            itemGridColumns === cols
+                              ? 'border-neutral-900 bg-neutral-900 text-white shadow-sm'
+                              : 'border-neutral-200 hover:border-neutral-400 bg-white'
+                          }`}
+                        >
+                          {cols}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Sections Customization */}
+              {customizationTab === 'sections' && (
+                <div className="space-y-3">
+                  <p className="text-xs text-neutral-500 mb-4 leading-relaxed">
+                    Show or hide sections on your registry.
+                  </p>
+                  {categories.map((category) => {
+                    const isHidden = hiddenSections.has(category);
+                    return (
+                      <div
+                        key={category}
+                        className="flex items-center justify-between p-2.5 border border-neutral-200 rounded-md bg-white hover:border-neutral-300 transition-colors"
+                      >
+                        <span className="text-xs font-medium text-neutral-900">
+                          {CATEGORY_LABELS[category] || category}
+                        </span>
+                        <button
+                          onClick={() => {
+                            const newHidden = new Set(hiddenSections);
+                            if (isHidden) {
+                              newHidden.delete(category);
+                            } else {
+                              newHidden.add(category);
+                            }
+                            setHiddenSections(newHidden);
+                          }}
+                          className={`p-1.5 rounded-md transition-colors ${
+                            isHidden
+                              ? 'bg-neutral-100 text-neutral-400'
+                              : 'bg-neutral-900 text-white hover:bg-neutral-800'
+                          }`}
+                        >
+                          {isHidden ? (
+                            <EyeOff className="w-3.5 h-3.5" strokeWidth={1.5} />
+                          ) : (
+                            <Eye className="w-3.5 h-3.5" strokeWidth={1.5} />
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Live Preview - Full Width and Directly Editable */}
         {!fullScreenPreview && (
-          <div className="flex-1 overflow-y-auto">
-            <PublicRegistry
+          <div className="flex-1 overflow-y-auto bg-neutral-100">
+            <div 
+              className="w-full h-full flex items-start justify-center"
+              style={{ 
+                transform: 'scale(0.8)',
+                transformOrigin: 'top center',
+                minHeight: '125%' // Compensate for scale
+              }}
+            >
+              <div className="w-full max-w-full">
+                <PublicRegistry
               registry={{
                 id: currentRegistry?.id || '',
                 user_id: user?.id || '',
@@ -1347,6 +1745,7 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
                 subtitle: currentRegistry?.subtitle || '',
                 event_date: currentRegistry?.event_date || '',
                 hero_image_url: currentRegistry?.hero_image_url || '',
+                hero_image_position: currentRegistry?.hero_image_position || 'center',
                 description: currentRegistry?.description || '',
                 guestbook_enabled: currentRegistry?.guestbook_enabled ?? true,
                 is_published: currentRegistry?.is_published ?? false,
@@ -1356,6 +1755,11 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
               items={currentItems.sort((a, b) => a.priority - b.priority)}
               isPreview={true}
               customThemeColors={customThemeColors}
+              heroImageHeight={heroImageHeight}
+              heroOverlayOpacity={heroOverlayOpacity}
+              sectionSpacing={sectionSpacing}
+              itemGridColumns={itemGridColumns}
+              hiddenSections={hiddenSections}
               onUpdateRegistry={updateRegistry}
               onEditItem={setEditingItem}
               onAddItem={handleAddItem}
@@ -1366,6 +1770,8 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
               draggedItemId={draggedItem}
               dragOverIndex={dragOverIndex}
             />
+              </div>
+            </div>
           </div>
         )}
 
@@ -1394,6 +1800,7 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
                 subtitle: currentRegistry?.subtitle || '',
                 event_date: currentRegistry?.event_date || '',
                 hero_image_url: currentRegistry?.hero_image_url || '',
+                hero_image_position: currentRegistry?.hero_image_position || 'center',
                 description: currentRegistry?.description || '',
                 guestbook_enabled: currentRegistry?.guestbook_enabled ?? true,
                 is_published: currentRegistry?.is_published ?? false,
@@ -1403,6 +1810,11 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
               items={currentItems.sort((a, b) => a.priority - b.priority)}
               isPreview={true}
               customThemeColors={customThemeColors}
+              heroImageHeight={heroImageHeight}
+              heroOverlayOpacity={heroOverlayOpacity}
+              sectionSpacing={sectionSpacing}
+              itemGridColumns={itemGridColumns}
+              hiddenSections={hiddenSections}
               onUpdateRegistry={(updates) => {
                 updateRegistry(updates);
                 if (selectedRegistryId && user) {
@@ -1509,15 +1921,67 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
                   className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-neutral-900 focus:border-neutral-900 transition-colors"
                 />
                 {currentRegistry?.hero_image_url && (
-                  <div className="mt-2">
-                    <img
-                      src={currentRegistry.hero_image_url}
-                      alt="Hero preview"
-                      className="w-full h-48 object-cover rounded-lg border border-neutral-200"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
+                  <div className="mt-4 space-y-4">
+                    <div className="relative rounded-lg border-2 border-neutral-200 overflow-hidden">
+                      <img
+                        src={currentRegistry.hero_image_url}
+                        alt="Hero preview"
+                        className="w-full h-48 object-cover rounded-lg"
+                        style={{
+                          objectPosition: currentRegistry?.hero_image_position || 'center'
+                        }}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                    </div>
+                    
+                    {/* Image Position Controls */}
+                    <div>
+                      <label className="block text-sm font-medium text-neutral-700 mb-3">
+                        Image Position
+                      </label>
+                      <div className="grid grid-cols-3 gap-2 mb-3">
+                        {[
+                          { label: 'Top', value: 'top' },
+                          { label: 'Center', value: 'center' },
+                          { label: 'Bottom', value: 'bottom' },
+                          { label: 'Left', value: 'left' },
+                          { label: 'Right', value: 'right' },
+                          { label: 'Top Left', value: 'top left' },
+                          { label: 'Top Right', value: 'top right' },
+                          { label: 'Bottom Left', value: 'bottom left' },
+                          { label: 'Bottom Right', value: 'bottom right' },
+                        ].map((preset) => (
+                          <button
+                            key={preset.value}
+                            type="button"
+                            onClick={() => updateRegistry({ hero_image_position: preset.value })}
+                            className={`px-3 py-2 text-sm rounded-lg border-2 transition-all ${
+                              (currentRegistry?.hero_image_position || 'center') === preset.value
+                                ? 'border-neutral-900 bg-neutral-900 text-white'
+                                : 'border-neutral-200 hover:border-neutral-400 text-neutral-700'
+                            }`}
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+                      
+                      {/* Custom Position Input */}
+                      <div className="mt-3">
+                        <label className="block text-xs text-neutral-500 mb-1">
+                          Custom Position (e.g., "50% 30%" or "center top")
+                        </label>
+                        <input
+                          type="text"
+                          value={currentRegistry?.hero_image_position || 'center'}
+                          onChange={(e) => updateRegistry({ hero_image_position: e.target.value })}
+                          placeholder="center"
+                          className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:ring-2 focus:ring-neutral-900 focus:border-neutral-900 transition-colors"
+                        />
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1572,6 +2036,7 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
                           subtitle: currentRegistry?.subtitle || '',
                           event_date: currentRegistry?.event_date || null,
                           hero_image_url: currentRegistry?.hero_image_url || '',
+                          hero_image_position: currentRegistry?.hero_image_position || 'center',
                           description: currentRegistry?.description || '',
                           guestbook_enabled: currentRegistry?.guestbook_enabled ?? true,
                           event_type: currentRegistry?.event_type || 'wedding',
@@ -1778,7 +2243,7 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
             if (user) {
               supabase
                 .from('user_profiles')
-                .select('full_name')
+                .select('full_name, profile_picture_url')
                 .eq('user_id', user.id)
                 .single()
                 .then(({ data }) => {

@@ -22,6 +22,11 @@ type PublicRegistryProps = {
     surface: string;
     surfaceElevated: string;
   } | null;
+  heroImageHeight?: number; // Viewport height percentage
+  heroOverlayOpacity?: number; // 0-1
+  sectionSpacing?: number; // Tailwind spacing units
+  itemGridColumns?: number; // 1-4
+  hiddenSections?: Set<string>;
   onUpdateRegistry?: (updates: Partial<Registry>) => void;
   onEditItem?: (item: RegistryItem) => void;
   onAddItem?: (category: string) => void;
@@ -37,7 +42,12 @@ const PublicRegistry = ({
   registry, 
   items, 
   isPreview = false, 
-  customThemeColors, 
+  customThemeColors,
+  heroImageHeight = 60,
+  heroOverlayOpacity = 0.2,
+  sectionSpacing = 6,
+  itemGridColumns = 3,
+  hiddenSections = new Set(),
   onUpdateRegistry,
   onEditItem,
   onAddItem,
@@ -56,6 +66,10 @@ const PublicRegistry = ({
   const themeColors = registry.theme === 'custom' && customThemeColors ? customThemeColors : theme.colors;
 
   const groupedItems = items.reduce((acc, item) => {
+    // Skip hidden sections
+    if (hiddenSections.has(item.category)) {
+      return acc;
+    }
     if (!acc[item.category]) {
       acc[item.category] = [];
     }
@@ -78,17 +92,23 @@ const PublicRegistry = ({
     >
       {/* Hero Image Section */}
       {registry.hero_image_url && (
-        <div className="relative h-[60vh] min-h-[400px] max-h-[600px] overflow-hidden">
+        <div 
+          className="relative min-h-[400px] max-h-[600px] overflow-hidden"
+          style={{ height: `${heroImageHeight}vh` }}
+        >
           <div 
-            className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/10 to-transparent z-10"
+            className="absolute inset-0 z-10"
             style={{ 
-              background: `linear-gradient(to bottom, ${themeColors.background}40, ${themeColors.background}20, transparent)`
+              background: `linear-gradient(to bottom, rgba(0, 0, 0, ${heroOverlayOpacity * 0.2}), rgba(0, 0, 0, ${heroOverlayOpacity * 0.1}), transparent)`
             }}
           />
           <img
             src={registry.hero_image_url}
             alt={registry.title}
             className="w-full h-full object-cover"
+            style={{
+              objectPosition: registry.hero_image_position || 'center'
+            }}
           />
           <div className="absolute inset-0 flex items-center justify-center z-20">
             <div className="text-center px-6 max-w-4xl w-full">
@@ -613,7 +633,11 @@ const PublicRegistry = ({
       <div className="max-w-6xl mx-auto px-6 lg:px-8 py-16">
         {Object.keys(groupedItems).length > 0 ? (
           Object.entries(groupedItems).map(([category, categoryItems]) => (
-          <section key={category} className="mb-24 last:mb-0">
+          <section 
+            key={category} 
+            className="last:mb-0"
+            style={{ marginBottom: `${sectionSpacing * 4}px` }}
+          >
             <div className="mb-10">
               <h2 
                 className="text-caption tracking-widest uppercase mb-3"
@@ -627,7 +651,12 @@ const PublicRegistry = ({
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
+            <div 
+              className="grid gap-6 lg:gap-8"
+              style={{
+                gridTemplateColumns: `repeat(${itemGridColumns}, minmax(0, 1fr))`
+              }}
+            >
               {categoryItems.map((item, index) => {
                 const isDragged = draggedItemId === item.id;
                 const isDragOver = dragOverIndex?.category === category && dragOverIndex?.index === index && draggedItemId !== item.id;

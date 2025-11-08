@@ -50,6 +50,7 @@ export type Registry = {
   subtitle: string;
   event_date: string;
   hero_image_url: string;
+  hero_image_position?: string; // CSS object-position value (e.g., "center", "top", "50% 30%")
   description: string;
   guestbook_enabled: boolean;
   is_published: boolean;

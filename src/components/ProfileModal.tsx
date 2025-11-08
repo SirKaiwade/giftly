@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, CreditCard, User as UserIcon, Mail, Phone, MapPin, Building, Link as LinkIcon, CheckCircle2, AlertCircle } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { X, CreditCard, User as UserIcon, MapPin, Building, CheckCircle2, AlertCircle, Upload } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { User } from '@supabase/supabase-js';
 
@@ -15,6 +15,7 @@ type ProfileData = {
   business_name: string;
   website: string;
   bio: string;
+  profile_picture_url: string;
   stripe_account_id: string;
   stripe_account_status: 'pending' | 'active' | 'restricted' | null;
   stripe_onboarding_complete: boolean;
@@ -39,6 +40,7 @@ const ProfileModal = ({ user, isOpen, onClose }: ProfileModalProps) => {
     business_name: '',
     website: '',
     bio: '',
+    profile_picture_url: '',
     stripe_account_id: '',
     stripe_account_status: null,
     stripe_onboarding_complete: false,
@@ -47,6 +49,8 @@ const ProfileModal = ({ user, isOpen, onClose }: ProfileModalProps) => {
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [activeSection, setActiveSection] = useState<string>('personal');
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen && user) {
@@ -109,6 +113,7 @@ const ProfileModal = ({ user, isOpen, onClose }: ProfileModalProps) => {
           business_name: data.business_name || '',
           website: data.website || '',
           bio: data.bio || '',
+          profile_picture_url: data.profile_picture_url || '',
           stripe_account_id: data.stripe_account_id || '',
           stripe_account_status: data.stripe_account_status || null,
           stripe_onboarding_complete: data.stripe_onboarding_complete || false,
@@ -150,6 +155,7 @@ const ProfileModal = ({ user, isOpen, onClose }: ProfileModalProps) => {
           business_name: profileData.business_name,
           website: profileData.website,
           bio: profileData.bio,
+          profile_picture_url: profileData.profile_picture_url,
           updated_at: new Date().toISOString(),
         }, {
           onConflict: 'user_id'
@@ -161,6 +167,9 @@ const ProfileModal = ({ user, isOpen, onClose }: ProfileModalProps) => {
 
       setSaveMessage({ type: 'success', text: 'Profile saved successfully!' });
       setTimeout(() => setSaveMessage(null), 3000);
+      
+      // Reload profile to ensure all data is fresh
+      await loadProfile();
     } catch (error: any) {
       console.error('Error saving profile:', error.message || error);
       // Extract just the error message, not any SQL suggestions
@@ -299,6 +308,103 @@ const ProfileModal = ({ user, isOpen, onClose }: ProfileModalProps) => {
               <section id="section-personal" className="scroll-mt-8">
                 <h3 className="text-base font-medium text-neutral-900 mb-4">Personal Information</h3>
                 <div className="space-y-4">
+                  {/* Profile Picture Upload */}
+                  <div>
+                    <label className="block text-xs font-medium text-neutral-600 mb-2">
+                      Profile Picture
+                    </label>
+                    <div className="flex items-center space-x-4">
+                      <div className="relative">
+                        <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-neutral-200 bg-neutral-100 flex items-center justify-center">
+                          {profileData.profile_picture_url ? (
+                            <img
+                              src={profileData.profile_picture_url}
+                              alt="Profile"
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <UserIcon className="w-8 h-8 text-neutral-400" strokeWidth={1.5} />
+                          )}
+                        </div>
+                        {isUploadingImage && (
+                          <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
+                            <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+
+                            // Validate file size (max 5MB)
+                            if (file.size > 5 * 1024 * 1024) {
+                              setSaveMessage({ type: 'error', text: 'Image size must be less than 5MB' });
+                              setTimeout(() => setSaveMessage(null), 3000);
+                              return;
+                            }
+
+                            setIsUploadingImage(true);
+                            try {
+                              // Convert to base64 data URL
+                              const reader = new FileReader();
+                              reader.onloadend = () => {
+                                const base64String = reader.result as string;
+                                setProfileData({ ...profileData, profile_picture_url: base64String });
+                                setIsUploadingImage(false);
+                              };
+                              reader.onerror = () => {
+                                setSaveMessage({ type: 'error', text: 'Failed to read image file' });
+                                setIsUploadingImage(false);
+                              };
+                              reader.readAsDataURL(file);
+                            } catch (error) {
+                              console.error('Error uploading image:', error);
+                              setSaveMessage({ type: 'error', text: 'Failed to upload image' });
+                              setIsUploadingImage(false);
+                            }
+                          }}
+                        />
+                        <div className="flex items-center space-x-2">
+                          <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={isUploadingImage}
+                            className="px-3 py-1.5 text-xs bg-neutral-900 text-white rounded-md hover:bg-neutral-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1.5"
+                          >
+                            <Upload className="w-3 h-3" strokeWidth={1.5} />
+                            <span>{profileData.profile_picture_url ? 'Change' : 'Upload'} Photo</span>
+                          </button>
+                          {profileData.profile_picture_url && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setProfileData({ ...profileData, profile_picture_url: '' });
+                                if (fileInputRef.current) {
+                                  fileInputRef.current.value = '';
+                                }
+                              }}
+                              className="px-3 py-1.5 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors"
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                        <p className="text-xs text-neutral-400 mt-1.5">
+                          JPG, PNG or GIF. Max size 5MB.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
                   <div>
                     <label className="block text-xs font-medium text-neutral-600 mb-1.5">
                       Full Name
