@@ -185,23 +185,25 @@ const ShareModal = ({ registryUrl, registryTitle, onClose }: ShareModalProps) =>
               <QrCode className="w-4 h-4" strokeWidth={2} />
               <span>QR Code for Print Invites</span>
             </label>
-            <div className="bg-gradient-to-br from-neutral-50 to-neutral-100 rounded-xl p-6 text-center border-2 border-neutral-200">
-              <div className="inline-block p-4 bg-white rounded-xl shadow-lg mb-4">
-                <img
-                  src={qrCodeUrl}
-                  alt="Registry QR Code"
-                  className="w-48 h-48 rounded-lg"
-                />
+            <div className="bg-gradient-to-br from-neutral-50 to-neutral-100 rounded-xl p-6 border-2 border-neutral-200">
+              <div className="flex flex-col items-center">
+                <div className="inline-block p-4 bg-white rounded-xl shadow-lg mb-4">
+                  <img
+                    src={qrCodeUrl}
+                    alt="Registry QR Code"
+                    className="w-48 h-48 rounded-lg"
+                  />
+                </div>
+                <button
+                  onClick={handleDownloadQR}
+                  className="px-6 py-3 bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl font-medium text-sm transition-all duration-200 hover:scale-105 hover:shadow-lg"
+                >
+                  Download QR Code
+                </button>
+                <p className="text-xs text-neutral-500 mt-3 max-w-xs text-center">
+                  Add this to your invitations so guests can scan and access your registry
+                </p>
               </div>
-              <button
-                onClick={handleDownloadQR}
-                className="px-6 py-3 bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl font-medium text-sm transition-all duration-200 hover:scale-105 hover:shadow-lg"
-              >
-                Download QR Code
-              </button>
-              <p className="text-xs text-neutral-500 mt-3 max-w-xs mx-auto">
-                Add this to your invitations so guests can scan and access your registry
-              </p>
             </div>
           </div>
         </div>

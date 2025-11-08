@@ -70,6 +70,7 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
     surface: string;
     surfaceElevated: string;
   } | null>(null);
+  const [isLoadingRegistry, setIsLoadingRegistry] = useState(false);
 
   // Function to save registry with a given name
   const saveRegistryWithName = async (registryTitle: string) => {
@@ -308,13 +309,17 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
   useEffect(() => {
     console.log('[CanvasEditor] Load registry effect triggered:', { selectedRegistryId, hasUser: !!user });
     if (selectedRegistryId && user) {
+      setIsLoadingRegistry(true);
       console.log('[CanvasEditor] Loading registry data for:', selectedRegistryId);
-      supabase
-        .from('registries')
-        .select('*')
-        .eq('id', selectedRegistryId)
-        .single()
-        .then(({ data, error }) => {
+      
+      const loadRegistry = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('registries')
+            .select('*')
+            .eq('id', selectedRegistryId)
+            .single();
+
           console.log('[CanvasEditor] Registry data loaded:', { hasData: !!data, error });
           if (!error && data) {
             updateRegistry({
@@ -348,30 +353,37 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
             }
             
             // Load items for this registry
-            supabase
+            const { data: items, error: itemsError } = await supabase
               .from('registry_items')
               .select('*')
               .eq('registry_id', selectedRegistryId)
-              .order('priority', { ascending: true })
-              .then(({ data: items, error: itemsError }) => {
-                if (!itemsError && items) {
-                  updateItems(items);
-                }
-              });
+              .order('priority', { ascending: true });
+            
+            if (!itemsError && items) {
+              updateItems(items);
+            }
             
             // Load contributions for this registry
-            supabase
+            const { data: contribs, error: contribsError } = await supabase
               .from('contributions')
               .select('*')
               .eq('registry_id', selectedRegistryId)
-              .order('created_at', { ascending: false })
-              .then(({ data: contribs, error: contribsError }) => {
-                if (!contribsError && contribs) {
-                  setContributions(contribs);
-                }
-              });
+              .order('created_at', { ascending: false });
+            
+            if (!contribsError && contribs) {
+              setContributions(contribs);
+            }
           }
-        });
+        } catch (error) {
+          console.error('[CanvasEditor] Error loading registry:', error);
+        } finally {
+          setIsLoadingRegistry(false);
+        }
+      };
+
+      loadRegistry();
+    } else {
+      setIsLoadingRegistry(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRegistryId, user]);
@@ -399,6 +411,74 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
 
     fetchUserProfile();
   }, [user]);
+
+  // Auto-save registry changes to database
+  useEffect(() => {
+    // Only auto-save if registry exists in database (has an ID)
+    // Don't auto-save while loading (prevents saving immediately after load)
+    if (!selectedRegistryId || !user || !currentRegistry?.id || isLoadingRegistry) {
+      return;
+    }
+
+    // Debounce auto-save - wait 1.5 seconds after last change
+    const timeoutId = setTimeout(async () => {
+      console.log('[CanvasEditor] Auto-saving registry changes...');
+      
+      try {
+        // Save registry data
+        const { error: registryError } = await supabase
+          .from('registries')
+          .update({
+            title: currentRegistry.title || '',
+            subtitle: currentRegistry.subtitle || '',
+            event_date: currentRegistry.event_date || null,
+            hero_image_url: currentRegistry.hero_image_url || '',
+            description: currentRegistry.description || '',
+            guestbook_enabled: currentRegistry.guestbook_enabled ?? true,
+            event_type: currentRegistry.event_type || 'wedding',
+            theme: currentRegistry.theme || 'minimal',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', selectedRegistryId);
+
+        if (registryError) {
+          console.error('[CanvasEditor] Auto-save registry error:', registryError);
+        } else {
+          console.log('[CanvasEditor] Registry auto-saved successfully');
+        }
+
+        // Save items if they exist
+        if (currentItems.length > 0) {
+          // Delete existing items and re-insert (simpler than diffing)
+          const { error: deleteError } = await supabase
+            .from('registry_items')
+            .delete()
+            .eq('registry_id', selectedRegistryId);
+
+          if (!deleteError) {
+            const itemsToSave = currentItems.map(({ id, created_at, ...item }) => ({
+              ...item,
+              registry_id: selectedRegistryId,
+            }));
+
+            const { error: itemsError } = await supabase
+              .from('registry_items')
+              .insert(itemsToSave);
+
+            if (itemsError) {
+              console.error('[CanvasEditor] Auto-save items error:', itemsError);
+            } else {
+              console.log('[CanvasEditor] Items auto-saved successfully');
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[CanvasEditor] Auto-save error:', error);
+      }
+    }, 1500); // 1.5 second debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [currentRegistry, currentItems, selectedRegistryId, user, isLoadingRegistry]);
 
   // Get initials from name or email
   const getInitials = (email: string | undefined, fullName?: string | null) => {
