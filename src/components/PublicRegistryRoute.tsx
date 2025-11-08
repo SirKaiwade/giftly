@@ -108,11 +108,37 @@ const PublicRegistryRoute = () => {
     );
   }
 
+  // Parse custom theme colors if they exist
+  let customThemeColors = null;
+  if (registry.theme === 'custom' && (registry as any).custom_theme_colors) {
+    try {
+      const colors = typeof (registry as any).custom_theme_colors === 'string' 
+        ? JSON.parse((registry as any).custom_theme_colors)
+        : (registry as any).custom_theme_colors;
+      customThemeColors = colors;
+    } catch (e) {
+      console.error('Error parsing custom theme colors:', e);
+    }
+  }
+
   return (
     <PublicRegistry
       registry={registry}
       items={items}
       isPreview={false}
+      customThemeColors={customThemeColors}
+      titleFontFamily={(registry as any).title_font_family || 'sans'}
+      subtitleFontFamily={(registry as any).subtitle_font_family || 'sans'}
+      bodyFontFamily={(registry as any).body_font_family || 'sans'}
+      titleFontWeight={(registry as any).title_font_weight || 'normal'}
+      titleFontStyle={(registry as any).title_font_style || 'normal'}
+      titleTextDecoration={(registry as any).title_text_decoration || 'none'}
+      subtitleFontWeight={(registry as any).subtitle_font_weight || 'normal'}
+      subtitleFontStyle={(registry as any).subtitle_font_style || 'normal'}
+      subtitleTextDecoration={(registry as any).subtitle_text_decoration || 'none'}
+      bodyFontWeight={(registry as any).body_font_weight || 'normal'}
+      bodyFontStyle={(registry as any).body_font_style || 'normal'}
+      bodyTextDecoration={(registry as any).body_text_decoration || 'none'}
     />
   );
 };
