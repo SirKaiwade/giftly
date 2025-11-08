@@ -97,11 +97,7 @@ serve(async (req) => {
           status: 'pending',
         }),
         {
-          headers: { 
-            ...corsHeaders, 
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-          },
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           status: 200,
         }
       );
@@ -161,11 +157,7 @@ serve(async (req) => {
         status: 'pending',
       }),
       {
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
       }
     );
@@ -185,11 +177,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify(errorDetails),
       {
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
       }
     );
