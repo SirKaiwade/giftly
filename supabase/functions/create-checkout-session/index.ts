@@ -69,24 +69,8 @@ serve(async (req) => {
       throw new Error('Registry not found');
     }
 
-    // Get registry owner's Stripe Connect account
-    const { data: ownerProfile, error: ownerProfileError } = await supabaseClient
-      .from('user_profiles')
-      .select('stripe_account_id, stripe_account_status')
-      .eq('user_id', registry.user_id)
-      .single();
-
-    if (ownerProfileError || !ownerProfile?.stripe_account_id) {
-      throw new Error('Registry owner has not connected their payment account. Please ask them to connect Stripe in their profile settings.');
-    }
-
-    if (ownerProfile.stripe_account_status !== 'active') {
-      throw new Error('Registry owner\'s payment account is not yet active. Please ask them to complete their Stripe onboarding.');
-    }
-
-    // Calculate platform fee (3%)
-    const platformFeePercent = 0.03;
-    const platformFee = Math.round(amount * platformFeePercent);
+    // Platform wallet system - no Connect needed
+    // All payments go to platform account, balance tracked in registry_balances table
 
     const { data: item, error: itemError } = await supabaseClient
       .from('registry_items')
@@ -119,7 +103,8 @@ serve(async (req) => {
       throw new Error('Failed to create contribution record');
     }
 
-    // Create Stripe Checkout Session with Connect
+    // Create Stripe Checkout Session - charges go to platform account
+    // Balance will be tracked in registry_balances table
     const session = await stripeClient.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [
@@ -136,18 +121,6 @@ serve(async (req) => {
         },
       ],
       mode: 'payment',
-      payment_intent_data: {
-        application_fee_amount: platformFee,
-        transfer_data: {
-          destination: ownerProfile.stripe_account_id,
-        },
-        metadata: {
-          contribution_id: contribution.id,
-          registry_id,
-          item_id,
-          platform_fee: platformFee.toString(),
-        },
-      },
       success_url: success_url || `${req.headers.get('origin') || ''}/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: cancel_url || `${req.headers.get('origin') || ''}/cancel`,
       customer_email: contributor_email || undefined,
@@ -156,7 +129,6 @@ serve(async (req) => {
         registry_id,
         item_id,
         registry_slug: registry.slug,
-        platform_fee: platformFee.toString(),
       },
       // Allow promotion codes
       allow_promotion_codes: true,

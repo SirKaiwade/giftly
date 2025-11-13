@@ -2878,6 +2878,7 @@ const CanvasEditor = ({}: CanvasEditorProps) => {
           <div className="flex-1 overflow-y-auto">
             <AdminDashboard
               registryId={selectedRegistryId || currentRegistry?.id || ''}
+              registry={currentRegistry as any}
               items={currentItems}
               contributions={contributions}
             />

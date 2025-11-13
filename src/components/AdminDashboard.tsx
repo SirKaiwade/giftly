@@ -1,21 +1,74 @@
-import React, { useState } from 'react';
-import { Download, TrendingUp, Gift, Users, DollarSign, ExternalLink, Search, Filter } from 'lucide-react';
-import { Contribution, RegistryItem } from '../lib/supabase';
+import React, { useState, useEffect } from 'react';
+import { Download, TrendingUp, Gift, Users, DollarSign, ExternalLink, Search, Filter, Wallet, AlertTriangle, CreditCard } from 'lucide-react';
+import { Contribution, RegistryItem, Registry } from '../lib/supabase';
 import { formatCurrency, formatDate } from '../utils/helpers';
+import { supabase } from '../lib/supabase';
+import RedemptionModal from './RedemptionModal';
 
 type AdminDashboardProps = {
   registryId: string;
+  registry: Registry;
   items: RegistryItem[];
   contributions: Contribution[];
 };
 
-const AdminDashboard = ({ registryId, items, contributions }: AdminDashboardProps) => {
+const AdminDashboard = ({ registryId, registry, items, contributions }: AdminDashboardProps) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'pending' | 'refunded'>('all');
+  const [balance, setBalance] = useState<number | null>(null);
+  const [flaggedTransactions, setFlaggedTransactions] = useState<any[]>([]);
+  const [showRedemptionModal, setShowRedemptionModal] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   // Safety checks for empty arrays
   const safeContributions = contributions || [];
   const safeItems = items || [];
+
+  // Fetch balance and flagged transactions
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Get balance
+        const { data: balanceData } = await supabase
+          .from('registry_balances')
+          .select('balance_cents')
+          .eq('registry_id', registryId)
+          .single();
+
+        if (balanceData) {
+          setBalance(balanceData.balance_cents);
+        } else {
+          setBalance(0);
+        }
+
+        // Get flagged transactions
+        const { data: flaggedData } = await supabase
+          .from('flagged_transactions')
+          .select(`
+            *,
+            contributions:contribution_id (
+              id,
+              contributor_name,
+              contributor_email,
+              amount,
+              created_at
+            )
+          `)
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false });
+
+        if (flaggedData) {
+          setFlaggedTransactions(flaggedData);
+        }
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [registryId]);
 
   const totalRaised = safeContributions
     .filter(c => c.payment_status === 'paid')
@@ -82,6 +135,49 @@ const AdminDashboard = ({ registryId, items, contributions }: AdminDashboardProp
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Platform Balance Card - Prominent */}
+        <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-xl shadow-sm p-6 mb-8 border-2 border-green-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center space-x-2 mb-2">
+                <Wallet className="w-6 h-6 text-green-700" />
+                <span className="text-sm font-medium text-gray-700">Platform Balance</span>
+              </div>
+              <p className="text-4xl font-bold text-gray-900 mb-2">
+                {balance !== null ? formatCurrency(balance) : 'Loading...'}
+              </p>
+              <p className="text-sm text-gray-600">
+                Available for redemption as Amazon or Visa gift cards
+              </p>
+            </div>
+            <button
+              onClick={() => setShowRedemptionModal(true)}
+              disabled={!balance || balance === 0}
+              className="px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg font-medium flex items-center space-x-2 transition-colors"
+            >
+              <CreditCard className="w-5 h-5" />
+              <span>Redeem</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Flagged Transactions Alert */}
+        {flaggedTransactions.length > 0 && (
+          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded mb-8">
+            <div className="flex items-start">
+              <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5 mr-3" />
+              <div>
+                <h3 className="text-sm font-medium text-yellow-800 mb-1">
+                  {flaggedTransactions.length} transaction{flaggedTransactions.length !== 1 ? 's' : ''} flagged for review
+                </h3>
+                <p className="text-sm text-yellow-700">
+                  Some contributions require manual review before processing. Check the Flagged Transactions section below.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <div className="bg-white rounded-xl shadow-sm p-6">
             <div className="flex items-center justify-between mb-2">
@@ -249,6 +345,99 @@ const AdminDashboard = ({ registryId, items, contributions }: AdminDashboardProp
           </div>
         </div>
 
+        {/* Flagged Transactions Section */}
+        {flaggedTransactions.length > 0 && (
+          <div className="mt-8 bg-white rounded-xl shadow-sm">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center space-x-2">
+                <AlertTriangle className="w-5 h-5 text-yellow-600" />
+                <span>Flagged Transactions</span>
+              </h2>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Contributor
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Amount
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Flag Reason
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Date
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {flaggedTransactions.map((flagged) => {
+                    const contrib = flagged.contributions;
+                    return (
+                      <tr key={flagged.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4">
+                          <div className="text-sm font-medium text-gray-900">
+                            {contrib?.contributor_name || 'Unknown'}
+                          </div>
+                          {contrib?.contributor_email && (
+                            <div className="text-sm text-gray-500">{contrib.contributor_email}</div>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm font-semibold text-gray-900">
+                            {contrib ? formatCurrency(contrib.amount) : 'N/A'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            {flagged.flag_reason.replace('_', ' ')}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-500">
+                          {contrib ? new Date(contrib.created_at).toLocaleDateString() : 'N/A'}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={async () => {
+                                await supabase
+                                  .from('flagged_transactions')
+                                  .update({ status: 'approved' })
+                                  .eq('id', flagged.id);
+                                setFlaggedTransactions(flaggedTransactions.filter(f => f.id !== flagged.id));
+                              }}
+                              className="px-3 py-1 text-xs bg-green-100 text-green-800 rounded hover:bg-green-200 transition-colors"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              onClick={async () => {
+                                await supabase
+                                  .from('flagged_transactions')
+                                  .update({ status: 'rejected' })
+                                  .eq('id', flagged.id);
+                                setFlaggedTransactions(flaggedTransactions.filter(f => f.id !== flagged.id));
+                              }}
+                              className="px-3 py-1 text-xs bg-red-100 text-red-800 rounded hover:bg-red-200 transition-colors"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         <div className="mt-8 bg-white rounded-xl shadow-sm p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Items Performance</h2>
           <div className="space-y-4">
@@ -294,6 +483,27 @@ const AdminDashboard = ({ registryId, items, contributions }: AdminDashboardProp
           </div>
         </div>
       </div>
+
+      {/* Redemption Modal */}
+      {showRedemptionModal && balance !== null && (
+        <RedemptionModal
+          registry={registry}
+          currentBalance={balance}
+          onClose={() => setShowRedemptionModal(false)}
+          onSuccess={() => {
+            setShowRedemptionModal(false);
+            // Refresh balance
+            supabase
+              .from('registry_balances')
+              .select('balance_cents')
+              .eq('registry_id', registryId)
+              .single()
+              .then(({ data }) => {
+                if (data) setBalance(data.balance_cents);
+              });
+          }}
+        />
+      )}
     </div>
   );
 };

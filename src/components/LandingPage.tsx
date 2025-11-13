@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { ArrowRight, Gift, Sparkles, Heart, Zap, Users, Shield, Check, ChevronDown } from 'lucide-react';
 import { EVENT_TYPES, THEMES } from '../types';
 
@@ -84,7 +85,7 @@ const LandingPage = ({ onGetStarted, onSignIn, onSignUp }: LandingPageProps) => 
           </h1>
           
             <p className="text-body-lg md:text-heading-3 text-neutral-600 font-light mb-8 leading-relaxed">
-            Cash funds, experiences, products, charity donations, or that dream item—all in one beautiful, shareable link.
+            Cash funds, experiences, products, or that dream item—all in one beautiful, shareable link.
           </p>
 
             <div className="flex flex-col sm:flex-row items-start gap-4 mb-10">
@@ -292,7 +293,7 @@ const LandingPage = ({ onGetStarted, onSignIn, onSignUp }: LandingPageProps) => 
                         }}
                       >
                         <img
-                          src="https://images.unsplash.com/photo-1556911220-bff31c812dba?w=400"
+                          src="https://www.wmf.com/media/catalog/product/e/6/e6f347f5-3368-496f-8258e3fc401488af-696ff880-8900547698-20250325-225645.jpg?optimize=medium&bg-color=255,255,255&fit=bounds&height=700&width=700&canvas=700:700"
                           alt="Cookware"
                           className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-300"
                         />
@@ -318,7 +319,7 @@ const LandingPage = ({ onGetStarted, onSignIn, onSignUp }: LandingPageProps) => 
                         }}
                       >
                         <img
-                          src="https://images.unsplash.com/photo-1517668808823-f8c76b0219e0?w=400"
+                          src="https://cafeliegeois.ca/cdn/shop/files/delonghi-truebrew-drip-coffee-maker-stainlessblack-162425.webp?v=1730809151"
                           alt="Coffee Maker"
                           className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-300"
                         />
@@ -362,9 +363,9 @@ const LandingPage = ({ onGetStarted, onSignIn, onSignUp }: LandingPageProps) => 
                         }}
                       >
                         <img
-                          src="https://images.unsplash.com/photo-1586105251261-72a756497a11?w=400"
+                          src="https://m.media-amazon.com/images/I/81h5lBDrl2L._AC_UF894,1000_QL80_.jpg"
                           alt="Bedding"
-                          className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-300"
+                          className="w-full h-full object-contain p-2 scale-[1.15] group-hover:scale-[1.265] transition-transform duration-300"
                         />
                       </div>
                       <h3 
@@ -388,9 +389,9 @@ const LandingPage = ({ onGetStarted, onSignIn, onSignUp }: LandingPageProps) => 
                         }}
                       >
                         <img
-                          src="https://images.unsplash.com/photo-1586105449897-20b5efeb3233?w=400"
+                          src="https://m.media-amazon.com/images/I/71YAboIsyAL._AC_UF894,1000_QL80_.jpg"
                           alt="Pillows"
-                          className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-300"
+                          className="w-full h-full object-contain p-2 scale-[1.15] group-hover:scale-[1.265] transition-transform duration-300"
                         />
                       </div>
                       <h3 
@@ -414,9 +415,9 @@ const LandingPage = ({ onGetStarted, onSignIn, onSignUp }: LandingPageProps) => 
                         }}
                       >
                         <img
-                          src="https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=400"
+                          src="https://m.media-amazon.com/images/I/81TCeaR62OL.jpg"
                           alt="Mattress"
-                          className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-300"
+                          className="w-full h-full object-contain p-2 scale-[1.15] group-hover:scale-[1.265] transition-transform duration-300"
                         />
                       </div>
                       <h3 
@@ -458,9 +459,9 @@ const LandingPage = ({ onGetStarted, onSignIn, onSignUp }: LandingPageProps) => 
                         }}
                       >
                         <img
-                          src="https://images.unsplash.com/photo-1506439773649-6e0eb8cfb237?w=400"
+                          src="https://m.media-amazon.com/images/I/71h1E-+Z5-L._AC_UF1000,1000_QL80_.jpg"
                           alt="Chair"
-                          className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-300"
+                          className="w-full h-full object-contain p-2 scale-[1.15] group-hover:scale-[1.265] transition-transform duration-300"
                         />
                       </div>
                       <h3 
@@ -484,7 +485,7 @@ const LandingPage = ({ onGetStarted, onSignIn, onSignUp }: LandingPageProps) => 
                         }}
                       >
                         <img
-                          src="https://images.unsplash.com/photo-1507473885765-e6ed057f782c?w=400"
+                          src="https://m.media-amazon.com/images/I/61QRm+UAf3L._AC_UF894,1000_QL80_.jpg"
                           alt="Lamp"
                           className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-300"
                         />
@@ -510,9 +511,9 @@ const LandingPage = ({ onGetStarted, onSignIn, onSignUp }: LandingPageProps) => 
                         }}
                       >
                         <img
-                          src="https://images.unsplash.com/photo-1578301978018-3005759f48f7?w=400"
+                          src="https://m.media-amazon.com/images/I/71vNqwdU5BL._AC_UF894,1000_QL80_.jpg"
                           alt="Art"
-                          className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-300"
+                          className="w-full h-full object-contain p-2 scale-[1.15] group-hover:scale-[1.265] transition-transform duration-300"
                         />
                       </div>
                       <h3 
@@ -822,7 +823,7 @@ const LandingPage = ({ onGetStarted, onSignIn, onSignUp }: LandingPageProps) => 
               Add anything. Really.
             </h2>
             <p className="text-body-lg text-neutral-600 font-light max-w-2xl mx-auto">
-              Mix cash funds, physical products, experiences, charity donations, or custom items—all in one registry.
+              Mix cash funds, physical products, experiences, or custom items—all in one registry.
             </p>
           </div>
 
@@ -863,19 +864,19 @@ const LandingPage = ({ onGetStarted, onSignIn, onSignUp }: LandingPageProps) => 
                 <div className="text-body font-semibold text-neutral-900">$350</div>
               </div>
 
-              {/* Example: Charity */}
+              {/* Example: Product */}
               <div className="card-elevated p-6 hover-lift">
-                <div className="aspect-[4/3] bg-neutral-100 mb-4 overflow-hidden rounded-xl">
+                <div className="aspect-[4/3] bg-white mb-4 overflow-hidden rounded-xl flex items-center justify-center">
                   <img
-                    src="https://images.pexels.com/photos/6646918/pexels-photo-6646918.jpeg?auto=compress&cs=tinysrgb&w=800"
-                    alt="Charity"
-                    className="w-full h-full object-cover"
+                    src="https://media.restorationhardware.com/is/image/rhis/prod24880441_E817558922_F_CC?$PD$&illum=0&$PDP-IS-2000$"
+                    alt="Italian Heritage Washed Linen Flange Sham"
+                    className="w-full h-full object-contain p-6"
                   />
                 </div>
-                <div className="text-caption tracking-wide text-neutral-500 uppercase mb-2">❤️ Charity</div>
-                <h3 className="text-heading-3 font-medium text-neutral-900 mb-1">Local Food Bank</h3>
-                <p className="text-body-sm text-neutral-600 mb-3">Support our community</p>
-                <div className="text-body font-semibold text-neutral-900">$32 raised</div>
+                <div className="text-caption tracking-wide text-neutral-500 uppercase mb-2">📦 Product</div>
+                <h3 className="text-heading-3 font-medium text-neutral-900 mb-1">Italian Heritage Washed Linen Flange Sham</h3>
+                <p className="text-body-sm text-neutral-600 mb-3">From Restoration Hardware</p>
+                <div className="text-body font-semibold text-neutral-900">$89</div>
               </div>
 
               {/* Example: Experience */}
@@ -896,7 +897,7 @@ const LandingPage = ({ onGetStarted, onSignIn, onSignUp }: LandingPageProps) => 
 
           <div className="text-center">
             <p className="text-base text-neutral-600 mb-2">
-              Add funds (college, honeymoon), products (Amazon, KitchenAid, anything), charity donations, experiences, or custom items.
+              Add funds (college, honeymoon), products (Amazon, KitchenAid, anything), experiences, or custom items.
             </p>
             <p className="text-sm text-neutral-500 mb-6">
               Whether it's a $50 coffee maker or a $120,000 dream car, your friends can contribute any amount.
@@ -934,7 +935,7 @@ const LandingPage = ({ onGetStarted, onSignIn, onSignUp }: LandingPageProps) => 
                 <p className="text-sm text-neutral-600">
                   {event.value === 'wedding' && 'Honeymoon funds, home essentials, experiences'}
                   {event.value === 'baby' && 'Nursery items, diapers, college savings'}
-                  {event.value === 'birthday' && 'Experiences, gifts, charity donations'}
+                  {event.value === 'birthday' && 'Experiences, gifts, custom items'}
                   {event.value === 'housewarming' && 'Furniture, appliances, home improvements'}
                   {event.value === 'graduation' && 'Travel funds, professional gear, celebrations'}
                   {event.value === 'custom' && 'Anything you can imagine'}
@@ -961,7 +962,7 @@ const LandingPage = ({ onGetStarted, onSignIn, onSignUp }: LandingPageProps) => 
               </div>
               <h3 className="text-lg font-medium text-neutral-900 mb-2">Flexible Items</h3>
               <p className="text-sm text-neutral-600">
-                Cash, products, experiences, charity, or custom items—mix and match however you want.
+                Cash, products, experiences, or custom items—mix and match however you want.
               </p>
             </div>
 
@@ -1025,7 +1026,7 @@ const LandingPage = ({ onGetStarted, onSignIn, onSignUp }: LandingPageProps) => 
             Ready to create your registry?
           </h2>
           <p className="text-body-lg text-neutral-300 font-light mb-12 max-w-2xl mx-auto">
-            Join thousands creating beautiful, flexible registries for any occasion.
+            Join thousands creating beautiful, flexible registries for any occasion. Instant gift card redemption.
           </p>
           <button
             onClick={onGetStarted}
@@ -1051,8 +1052,9 @@ const LandingPage = ({ onGetStarted, onSignIn, onSignUp }: LandingPageProps) => 
               <span className="font-medium">Giftendo</span>
             </div>
             <div className="flex items-center space-x-6">
-              <a href="#" className="hover:text-neutral-900 transition-colors">Privacy</a>
-              <a href="#" className="hover:text-neutral-900 transition-colors">Terms</a>
+              <Link to="/terms" className="hover:text-neutral-900 transition-colors">Terms</Link>
+              <Link to="/prohibited-activity" className="hover:text-neutral-900 transition-colors">Prohibited Activity</Link>
+              <Link to="/refund-policy" className="hover:text-neutral-900 transition-colors">Refund Policy</Link>
               <a href="#" className="hover:text-neutral-900 transition-colors">Support</a>
             </div>
           </div>

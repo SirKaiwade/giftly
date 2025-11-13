@@ -209,6 +209,14 @@ const ContributionModal = ({ item, registry, onClose }: ContributionModalProps) 
             <p className="text-body-sm text-center text-neutral-500 mt-4">
               Secure payment processing powered by Stripe
             </p>
+            <div className="mt-4 p-4 bg-neutral-50 rounded-xl border border-neutral-200">
+              <p className="text-body-sm text-neutral-700 mb-2">
+                <strong>After payment:</strong> Recipient can redeem instantly as Amazon or Visa e-gift card.
+              </p>
+              <p className="text-body-sm text-neutral-600">
+                Gift cards are delivered via email within 24 hours of redemption.
+              </p>
+            </div>
           </div>
         </form>
       </div>

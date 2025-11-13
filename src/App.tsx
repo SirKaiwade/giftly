@@ -5,6 +5,9 @@ import LandingPage from './components/LandingPage';
 import RegistryBuilder from './components/RegistryBuilder';
 import CanvasEditor from './components/CanvasEditor';
 import PublicRegistryRoute from './components/PublicRegistryRoute';
+import TermsOfService from './components/TermsOfService';
+import ProhibitedActivityPolicy from './components/ProhibitedActivityPolicy';
+import RefundPolicy from './components/RefundPolicy';
 import SignInModal from './components/SignInModal';
 import SignUpModal from './components/SignUpModal';
 import ProfileSetupModal from './components/ProfileSetupModal';
@@ -65,6 +68,10 @@ function AppContent() {
       document.title = 'Create Registry - Giftendo';
     } else if (location.pathname === '/canvas') {
       document.title = 'Edit Registry - Giftendo';
+    } else if (location.pathname === '/terms') {
+      document.title = 'Terms of Service - Giftendo';
+    } else if (location.pathname === '/prohibited-activity') {
+      document.title = 'Prohibited Activity Policy - Giftendo';
     }
   }, [location.pathname]);
 
@@ -246,6 +253,11 @@ function AppContent() {
             </ProtectedRoute>
           }
         />
+        
+        {/* Policy Pages - must come before /:slug */}
+        <Route path="/terms" element={<TermsOfService />} />
+        <Route path="/prohibited-activity" element={<ProhibitedActivityPolicy />} />
+        <Route path="/refund-policy" element={<RefundPolicy />} />
         
         {/* Public Registry Route - accessible by slug (must come after specific routes) */}
         <Route path="/:slug" element={<PublicRegistryRoute />} />

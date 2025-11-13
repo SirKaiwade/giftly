@@ -64,6 +64,18 @@ serve(async (req) => {
       case 'checkout.session.completed': {
         const session = event.data.object as any;
         
+        // Get contribution details
+        const { data: contribution, error: contribError } = await supabaseClient
+          .from('contributions')
+          .select('id, amount, registry_id, contributor_email, contributor_name')
+          .eq('stripe_payment_id', session.id)
+          .single();
+
+        if (contribError || !contribution) {
+          console.error('Contribution not found:', contribError);
+          break;
+        }
+
         // Update contribution status to paid
         const { error: updateError } = await supabaseClient
           .from('contributions')
@@ -71,51 +83,97 @@ serve(async (req) => {
             payment_status: 'paid',
             stripe_payment_id: session.payment_intent || session.id,
           })
-          .eq('stripe_payment_id', session.id);
+          .eq('id', contribution.id);
 
         if (updateError) {
           console.error('Error updating contribution:', updateError);
           throw updateError;
         }
 
+        // Platform wallet: Ensure registry_balances record exists and increment
+        // The trigger will handle the increment, but we ensure the record exists first
+        const { data: existingBalance } = await supabaseClient
+          .from('registry_balances')
+          .select('id')
+          .eq('registry_id', contribution.registry_id)
+          .single();
+
+        if (!existingBalance) {
+          // Create initial balance record (trigger will increment it)
+          await supabaseClient
+            .from('registry_balances')
+            .insert({
+              registry_id: contribution.registry_id,
+              balance_cents: 0,
+              total_contributed_cents: 0,
+            });
+        }
+        // Balance increment happens via database trigger when payment_status changes to 'paid'
+
         // Update the item's current_amount
         if (session.metadata?.item_id) {
-          // Get current contribution amount
-          const { data: contribution } = await supabaseClient
-            .from('contributions')
-            .select('amount, item_id')
-            .eq('stripe_payment_id', session.id)
+          const { data: item } = await supabaseClient
+            .from('registry_items')
+            .select('current_amount, price_amount')
+            .eq('id', session.metadata.item_id)
             .single();
 
-          if (contribution) {
-            // Update item's current_amount
-            const { data: item } = await supabaseClient
+          if (item) {
+            const newAmount = (item.current_amount || 0) + contribution.amount;
+            const isFulfilled = newAmount >= item.price_amount;
+
+            await supabaseClient
               .from('registry_items')
-              .select('current_amount')
-              .eq('id', contribution.item_id)
-              .single();
-
-            if (item) {
-              const newAmount = (item.current_amount || 0) + contribution.amount;
-              
-              // Check if item is fulfilled
-              const { data: fullItem } = await supabaseClient
-                .from('registry_items')
-                .select('price_amount')
-                .eq('id', contribution.item_id)
-                .single();
-
-              const isFulfilled = fullItem && newAmount >= fullItem.price_amount;
-
-              await supabaseClient
-                .from('registry_items')
-                .update({
-                  current_amount: newAmount,
-                  is_fulfilled: isFulfilled,
-                })
-                .eq('id', contribution.item_id);
-            }
+              .update({
+                current_amount: newAmount,
+                is_fulfilled: isFulfilled,
+              })
+              .eq('id', session.metadata.item_id);
           }
+        }
+
+        // Fraud rules: Flag high amounts (> $1,000) for manual review
+        const HIGH_AMOUNT_THRESHOLD = 100000; // $1,000 in cents
+        if (contribution.amount >= HIGH_AMOUNT_THRESHOLD) {
+          await supabaseClient
+            .from('flagged_transactions')
+            .insert({
+              contribution_id: contribution.id,
+              flag_reason: 'high_amount',
+              flag_details: {
+                amount: contribution.amount,
+                threshold: HIGH_AMOUNT_THRESHOLD,
+              },
+              status: 'pending',
+            });
+          
+          console.log('High amount contribution flagged:', contribution.id, contribution.amount);
+        }
+
+        // Fraud rules: Check for suspicious patterns (multiple contributions from same email in short time)
+        // This is a simple check - can be enhanced
+        const { data: recentContributions } = await supabaseClient
+          .from('contributions')
+          .select('id, created_at')
+          .eq('contributor_email', contribution.contributor_email)
+          .eq('payment_status', 'paid')
+          .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Last 24 hours
+          .limit(10);
+
+        if (recentContributions && recentContributions.length >= 5) {
+          await supabaseClient
+            .from('flagged_transactions')
+            .insert({
+              contribution_id: contribution.id,
+              flag_reason: 'suspicious_pattern',
+              flag_details: {
+                pattern: 'multiple_contributions_24h',
+                count: recentContributions.length,
+              },
+              status: 'pending',
+            });
+          
+          console.log('Suspicious pattern flagged:', contribution.id);
         }
 
         console.log('Payment succeeded:', session.id);
@@ -189,42 +247,31 @@ serve(async (req) => {
               })
               .eq('id', contribution.item_id);
           }
+
+          // Decrease registry balance (platform wallet) on refund
+          if (contribution.registry_id) {
+            // Get current balance
+            const { data: balance } = await supabaseClient
+              .from('registry_balances')
+              .select('balance_cents')
+              .eq('registry_id', contribution.registry_id)
+              .single();
+
+            if (balance) {
+              const newBalance = Math.max(0, balance.balance_cents - contribution.amount);
+              await supabaseClient
+                .from('registry_balances')
+                .update({ balance_cents: newBalance })
+                .eq('registry_id', contribution.registry_id);
+            }
+          }
         }
 
         console.log('Refund processed:', charge.id);
         break;
       }
 
-      case 'account.updated': {
-        const account = event.data.object as any;
-        
-        // Update user profile with account status
-        const { data: profile } = await supabaseClient
-          .from('user_profiles')
-          .select('id')
-          .eq('stripe_account_id', account.id)
-          .single();
-
-        if (profile) {
-          let accountStatus = 'pending';
-          if (account.charges_enabled && account.payouts_enabled) {
-            accountStatus = 'active';
-          } else if (account.charges_enabled || account.payouts_enabled) {
-            accountStatus = 'restricted';
-          }
-
-          await supabaseClient
-            .from('user_profiles')
-            .update({
-              stripe_account_status: accountStatus,
-              stripe_onboarding_complete: account.details_submitted || false,
-            })
-            .eq('stripe_account_id', account.id);
-
-          console.log('Account status updated:', account.id, accountStatus);
-        }
-        break;
-      }
+      // Removed account.updated handler - no longer using Stripe Connect
 
       default:
         console.log(`Unhandled event type: ${event.type}`);

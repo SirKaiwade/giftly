@@ -200,7 +200,8 @@ const ProfileModal = ({ user, isOpen, onClose }: ProfileModalProps) => {
     }
   };
 
-  const handleConnectStripe = async () => {
+  // Removed: Stripe Connect onboarding - no longer needed with platform wallet system
+  const handleConnectStripe_DEPRECATED = async () => {
     try {
       setIsSaving(true);
       
@@ -643,60 +644,9 @@ const ProfileModal = ({ user, isOpen, onClose }: ProfileModalProps) => {
                 </div>
               </section>
 
-              {/* Stripe Account */}
-              <section id="section-payments" className="scroll-mt-8">
-                <h3 className="text-base font-medium text-neutral-900 mb-4">Payment Settings</h3>
-                <div className="bg-neutral-50 rounded-lg p-5 border border-neutral-200">
-                  {profileData.stripe_account_id ? (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-neutral-900">Stripe Account Connected</p>
-                          <p className="text-xs text-neutral-500 mt-1">
-                            Account ID: {profileData.stripe_account_id.substring(0, 20)}...
-                          </p>
-                        </div>
-                        <div className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          profileData.stripe_account_status === 'active'
-                            ? 'bg-green-100 text-green-800'
-                            : profileData.stripe_account_status === 'restricted'
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-gray-100 text-gray-800'
-                        }`}>
-                          {profileData.stripe_account_status || 'Pending'}
-                        </div>
-                      </div>
-                      {!profileData.stripe_onboarding_complete && (
-                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                          <p className="text-sm text-yellow-800">
-                            Complete your Stripe onboarding to receive payouts.
-                          </p>
-                          <button
-                            onClick={handleConnectStripe}
-                            className="mt-2 px-4 py-2 bg-yellow-600 text-white rounded-lg text-sm font-medium hover:bg-yellow-700 transition-colors"
-                          >
-                            Complete Onboarding
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="text-center py-4">
-                      <CreditCard className="w-12 h-12 text-neutral-400 mx-auto mb-3" />
-                      <p className="text-sm text-neutral-600 mb-4">
-                        Connect your Stripe account to receive payments from contributions
-                      </p>
-                      <button
-                        onClick={handleConnectStripe}
-                        className="px-6 py-2 bg-neutral-900 text-white rounded-lg font-medium hover:bg-neutral-800 transition-colors flex items-center space-x-2 mx-auto"
-                      >
-                        <CreditCard className="w-4 h-4" />
-                        <span>Connect Stripe Account</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </section>
+              {/* Payment Settings - Removed Stripe Connect */}
+              {/* Platform wallet system: All payments go to platform account, balance tracked per registry */}
+              {/* No Connect onboarding needed - recipients redeem via gift cards or shipping tokens */}
 
               {/* Save Button */}
               <div className="flex items-center justify-end space-x-3 pt-4 border-t border-neutral-200 sticky bottom-0 bg-white pb-4">
