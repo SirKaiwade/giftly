@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Gift, Sparkles, Heart, Zap, Users, Shield, Check, ChevronDown } from 'lucide-react';
+import { ArrowRight, Gift, Sparkles, Heart, Zap, Users, Shield, Check } from 'lucide-react';
 import { EVENT_TYPES, THEMES } from '../types';
 
 type LandingPageProps = {
@@ -11,25 +11,9 @@ type LandingPageProps = {
 
 const LandingPage = ({ onGetStarted, onSignIn, onSignUp }: LandingPageProps) => {
   const [selectedTheme, setSelectedTheme] = useState<typeof THEMES[0]['value']>('minimal');
-  const [showScrollHint, setShowScrollHint] = useState(true);
   const previewScrollRef = useRef<HTMLDivElement>(null);
   const theme = THEMES.find(t => t.value === selectedTheme) || THEMES[0];
   const themeColors = theme.colors;
-
-  // Hide scroll hint after user scrolls
-  useEffect(() => {
-    if (previewScrollRef.current) {
-      const handleScroll = () => {
-        if (previewScrollRef.current && previewScrollRef.current.scrollTop > 10) {
-          setShowScrollHint(false);
-        }
-      };
-      previewScrollRef.current.addEventListener('scroll', handleScroll);
-      return () => {
-        previewScrollRef.current?.removeEventListener('scroll', handleScroll);
-      };
-    }
-  }, []);
 
   return (
     <div className="min-h-screen bg-white">
@@ -167,19 +151,6 @@ const LandingPage = ({ onGetStarted, onSignIn, onSignUp }: LandingPageProps) => 
                   </div>
                 </div>
               </div>
-
-              {/* Scroll Hint */}
-              {showScrollHint && (
-                <div className="absolute top-24 right-4 z-10 animate-pulse">
-                  <div 
-                    className="bg-white/95 backdrop-blur-sm rounded-full px-3 py-2 shadow-xl border border-neutral-200 flex items-center space-x-2 text-[10px] font-medium"
-                    style={{ color: themeColors.text }}
-                  >
-                    <ChevronDown className="w-4 h-4 animate-bounce" />
-                    <span>Scroll</span>
-                  </div>
-                </div>
-              )}
 
               {/* Preview Content */}
               <div 
